@@ -15,3 +15,4 @@ pibackend/vultr_audit.db-shm
 pibackend/vultr_audit.db-wal
 pibackend/*.log
 pibackend/drizzle/
+infra/searxng/.env

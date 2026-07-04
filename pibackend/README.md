@@ -72,6 +72,8 @@ WEB_SEARCH_PROVIDER=searxng
 SEARXNG_BASE_URL=http://localhost:8080
 ```
 
+A ready-to-run Docker Compose setup is available in `infra/searxng`.
+
 For a hosted fallback, set `WEB_SEARCH_PROVIDER=brave` and `BRAVE_SEARCH_API_KEY`.
 
 Agent covenant discovery flow:
