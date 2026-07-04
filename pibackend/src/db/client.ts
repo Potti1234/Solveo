@@ -75,5 +75,17 @@ export function createSchema() {
 
     CREATE INDEX IF NOT EXISTS sec_filing_documents_exhibit_10_1_idx
       ON sec_filing_documents (is_exhibit_10_1);
+
+    CREATE TABLE IF NOT EXISTS vultr_document_collections (
+      document_url TEXT PRIMARY KEY,
+      collection_id TEXT NOT NULL,
+      collection_name TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
+      indexed_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS vultr_document_collections_collection_idx
+      ON vultr_document_collections (collection_id);
   `);
 }

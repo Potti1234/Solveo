@@ -7,9 +7,10 @@ type ScriptInputs = {
 };
 
 export function buildMathVerificationScript(inputs: ScriptInputs): string {
+  const payload = compactInputs(inputs);
   return `import json
 
-payload = json.loads(r'''${JSON.stringify(inputs, null, 2)}''')
+payload = json.loads(r'''${JSON.stringify(payload, null, 2)}''')
 
 checks = []
 for calc in payload["calculations"]:
@@ -43,9 +44,10 @@ print(json.dumps({
 }
 
 export function buildTwoQuarterProjectionScript(inputs: ScriptInputs): string {
+  const payload = compactInputs(inputs);
   return `import json
 
-payload = json.loads(r'''${JSON.stringify(inputs, null, 2)}''')
+payload = json.loads(r'''${JSON.stringify(payload, null, 2)}''')
 
 stress_cases = []
 for calc in payload["calculations"]:
@@ -89,4 +91,36 @@ print(json.dumps({
     "stressCases": stress_cases
 }, indent=2))
 `;
+}
+
+function compactInputs(inputs: ScriptInputs): ScriptInputs {
+  return {
+    rulebook: {
+      ...inputs.rulebook,
+      rules: inputs.rulebook.rules.map((rule) => ({
+        ...rule,
+        citations: rule.citations.map((citation) => ({
+          ...citation,
+          excerpt: citation.excerpt.slice(0, 500)
+        }))
+      }))
+    },
+    calculations: inputs.calculations.map((calculation) => ({
+      ...calculation,
+      citations: calculation.citations.slice(0, 6).map((citation) => ({
+        ...citation,
+        excerpt: citation.excerpt.slice(0, 500)
+      }))
+    })),
+    retrievals: inputs.retrievals.map((retrieval) => ({
+      query: retrieval.query,
+      reasoning: retrieval.reasoning,
+      model: retrieval.model,
+      lineItems: retrieval.lineItems,
+      citations: retrieval.citations.slice(0, 4).map((citation) => ({
+        ...citation,
+        excerpt: citation.excerpt.slice(0, 500)
+      }))
+    }))
+  };
 }

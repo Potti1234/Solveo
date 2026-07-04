@@ -47,6 +47,11 @@ export type RetrievalBlock = {
   model?: "flash" | "prime";
   lineItems: FinancialLineItem[];
   citations: Citation[];
+  rawResults?: Array<{
+    score?: number | null;
+    content: string;
+    description?: string | null;
+  }>;
 };
 
 export type CovenantKeywordScan = {

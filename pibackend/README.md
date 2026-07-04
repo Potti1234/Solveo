@@ -90,6 +90,12 @@ Agent covenant discovery flow:
 
 Both scripts are returned in `thoughts` with phase `code_execution`, so the frontend can show the code block and execution output in the agent trace.
 
+Vultr integration:
+
+- Chat reasoning uses the OpenAI-compatible `/chat/completions` endpoint.
+- Document retrieval uses Vultr Vector Store: create collection, add chunked SEC document items, search the collection, and use RAG chat for normalization.
+- Indexed document collection IDs are cached in SQLite by document URL.
+
 Triple-Check & Act:
 
 - Reflective retrieval searches `Subsequent Events` and management liquidity/debt language after the first calculation.

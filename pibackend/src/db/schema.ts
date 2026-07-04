@@ -65,9 +65,26 @@ export const secFilingDocuments = sqliteTable(
   })
 );
 
+export const vultrDocumentCollections = sqliteTable(
+  "vultr_document_collections",
+  {
+    documentUrl: text("document_url").primaryKey(),
+    collectionId: text("collection_id").notNull(),
+    collectionName: text("collection_name").notNull(),
+    contentHash: text("content_hash").notNull(),
+    indexedAt: text("indexed_at").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    collectionIndex: index("vultr_document_collections_collection_idx").on(table.collectionId)
+  })
+);
+
 export type SecCompanyTicker = typeof secCompanyTickers.$inferSelect;
 export type NewSecCompanyTicker = typeof secCompanyTickers.$inferInsert;
 export type SecFiling = typeof secFilings.$inferSelect;
 export type NewSecFiling = typeof secFilings.$inferInsert;
 export type SecFilingDocument = typeof secFilingDocuments.$inferSelect;
 export type NewSecFilingDocument = typeof secFilingDocuments.$inferInsert;
+export type VultrDocumentCollection = typeof vultrDocumentCollections.$inferSelect;
+export type NewVultrDocumentCollection = typeof vultrDocumentCollections.$inferInsert;

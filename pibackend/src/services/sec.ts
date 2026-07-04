@@ -30,12 +30,16 @@ export type SecFilingReference = {
 export async function findLatestFiling(ticker: string, filingType: "10-Q" | "10-K"): Promise<SecFilingReference> {
   const company = await resolveCompanyTicker(ticker);
   const normalizedTicker = company?.ticker ?? ticker.trim().toUpperCase();
-  const recentFiling = company ? (await fetchRecentFilings(company)).find((filing) => filing.form === filingType) : null;
+  const recentFilings = company ? await fetchRecentFilings(company, 80) : [];
+  const recentFiling =
+    recentFilings.find((filing) => filing.form === filingType) ??
+    recentFilings.find((filing) => filing.form === "10-Q" || filing.form === "10-K") ??
+    null;
 
   return {
     ticker: normalizedTicker,
     cik: company?.cik ?? null,
-    filingType,
+    filingType: (recentFiling?.form === "10-K" || recentFiling?.form === "10-Q" ? recentFiling.form : filingType) as "10-Q" | "10-K",
     accessionNumber: recentFiling?.accessionNumber ?? "placeholder",
     filedAt: recentFiling?.filingDate ?? new Date().toISOString(),
     url:
