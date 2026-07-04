@@ -29,10 +29,10 @@ export class VultrInferenceClient {
   private readonly reasoningModel =
     process.env.VULTR_REASONING_MODEL ?? process.env.VULTR_CHAT_MODEL ?? "VultronRetrieverPrime-Qwen3.5-8B";
   private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "30000");
-  private readonly demoMode = ["1", "true", "yes"].includes((process.env.VULTR_DEMO_MODE ?? "").toLowerCase());
+  private readonly localMode = ["1", "true", "yes"].includes((process.env.VULTR_LOCAL_MODE ?? "").toLowerCase());
 
   get live(): boolean {
-    return Boolean(this.apiKey) && !this.demoMode;
+    return Boolean(this.apiKey) && !this.localMode;
   }
 
   get model(): string {

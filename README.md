@@ -24,9 +24,9 @@ Implemented:
 - Optional SearXNG web search for live external context.
 - Explainability report with documents, tool calls, evidence trail, calculation trail, code verification, decision trail, and caveats.
 
-## Demo Target
+## Verified Run Target
 
-The reliable backend demo target is:
+One known working end-to-end run is:
 
 ```text
 Ticker: MCK
@@ -35,21 +35,23 @@ Credit agreement: Exhibit 10.1 term loan agreement
 SEC filing: latest available 10-Q
 ```
 
-The current demo computes:
+Use the real credit agreement URL as input. The backend extracts the covenant threshold and financial values from the linked SEC documents at run time.
 
-```text
-Total Debt / EBITDA = 1.367x
-Limit = 3.5x
-Result = compliant
-```
-
-Run:
+CLI:
 
 ```bash
 cd pibackend
 bun install
 bun run db:sync-tickers
-bun run audit:report MCK
+bun run audit:report MCK https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm
+```
+
+API:
+
+```bash
+curl -X POST http://localhost:8001/api/audits/report \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"MCK","creditAgreementUrl":"https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm"}'
 ```
 
 ## Backend
@@ -105,7 +107,7 @@ VULTR_API_KEY=your_vultr_key
 VULTR_INFERENCE_URL=https://api.vultrinference.com/v1
 VULTR_REASONING_MODEL=VultronRetrieverPrime-Qwen3.5-8B
 VULTR_RETRIEVER_MODEL=VultronRetriever
-VULTR_DEMO_MODE=false
+VULTR_LOCAL_MODE=false
 SEC_USER_AGENT=MyHackathonProject (email@example.com)
 DATABASE_PATH=
 WEB_SEARCH_PROVIDER=searxng
@@ -133,7 +135,7 @@ Use Dokploy or Docker Compose and point the backend at `SEARXNG_BASE_URL`.
 
 ## Known Backend Limitations
 
-- The current demo profile supplies the McKesson covenant threshold for a reliable presentation case; broader production use should validate thresholds against the executed agreement and compliance certificate.
+- Credit-agreement threshold extraction currently handles common leverage and coverage clauses such as `greater than 5.00 to 1.00` and `less than 2.50 to 1.00`. More covenant forms will need additional parsers.
 - SEC HTML table extraction is deterministic and tuned for common 10-Q layouts. More issuers will need additional parsing rules.
 - PDF/scanned-document upload is not implemented yet.
 - Frontend is not implemented yet.

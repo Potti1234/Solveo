@@ -12,18 +12,14 @@ import type {
   WebSearchResponse
 } from "../types";
 import { discoverCreditAgreementExhibits, findLatestFiling, resolveCompanyTicker } from "../services/sec";
-import { extractCovenantRulesContext, retrieveFinancialContext, scanCovenantKeywords } from "../services/retriever";
+import {
+  extractCovenantRulebookFromDocument,
+  extractCovenantRulesContext,
+  retrieveFinancialContext,
+  scanCovenantKeywords
+} from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { buildAuditExplainability } from "../services/auditReport";
-import {
-  demoCreditAgreementUrl,
-  demoFilingPlan,
-  demoFinancialRetrievals,
-  demoKeywordScan,
-  demoReflectiveChecks,
-  demoRulebook,
-  demoRuleContext
-} from "../services/demoProfiles";
 import { calculateCovenants } from "../tools/calculator";
 import { executeCode } from "../tools/executeCode";
 import { buildMathVerificationScript, buildTwoQuarterProjectionScript } from "../tools/riskScripts";
@@ -39,7 +35,7 @@ export class AgentEngine {
       company
     });
 
-    let creditAgreementUrl = request.creditAgreementUrl ?? demoCreditAgreementUrl(request.ticker);
+    let creditAgreementUrl = request.creditAgreementUrl ?? null;
     if (!creditAgreementUrl && company) {
       this.think("exhibit_discovery", "Searching recent SEC 10-K and 8-K filings for Exhibit 10.1 candidates.", {
         ticker: company.ticker,
@@ -58,68 +54,39 @@ export class AgentEngine {
       );
     }
 
-    const validatedKeywordScan = demoKeywordScan(request.ticker, creditAgreementUrl);
-    if (validatedKeywordScan) {
-      this.think("keyword_scan", "Using validated credit-agreement keyword scan for known demo workflow.", {
+    const keywordScan = creditAgreementUrl ? await this.scanCreditAgreement(creditAgreementUrl) : null;
+    const parsedRulebook = creditAgreementUrl
+      ? await extractCovenantRulebookFromDocument(creditAgreementUrl, company?.title ?? request.ticker.toUpperCase())
+      : null;
+    if (parsedRulebook) {
+      this.think("rule_extraction", "Extracted covenant rulebook directly from credit agreement text.", {
         creditAgreementUrl,
-        hitCount: validatedKeywordScan.hits.filter((hit) => hit.found).length
-      });
-    }
-    const keywordScan = validatedKeywordScan ?? (creditAgreementUrl ? await this.scanCreditAgreement(creditAgreementUrl) : null);
-    const validatedRuleContext = demoRuleContext(request.ticker, creditAgreementUrl);
-    if (validatedRuleContext) {
-      this.think("rule_extraction", "Using validated covenant context for known demo workflow.", {
-        creditAgreementUrl,
-        citationCount: validatedRuleContext.citations.length
+        ruleCount: parsedRulebook.rules.length,
+        rules: parsedRulebook.rules.map((rule) => ({ name: rule.name, operator: rule.operator, threshold: rule.threshold }))
       });
     }
     const ruleContext =
-      validatedRuleContext ?? (creditAgreementUrl && keywordScan ? await extractCovenantRulesContext(creditAgreementUrl, keywordScan) : null);
-    const rulebook = request.rulebook ?? demoRulebook(request.ticker, creditAgreementUrl) ?? (await this.extractRulebook(request, creditAgreementUrl, ruleContext));
-    const validatedDemoPlan = demoFilingPlan(company?.ticker ?? request.ticker, company);
-    if (validatedDemoPlan) {
-      this.think("planning", "Using validated demo filing plan for known covenant workflow.", {
-        ticker: validatedDemoPlan.ticker,
-        filingType: validatedDemoPlan.filingType,
-        retrievalQueries: validatedDemoPlan.retrievalQueries
-      });
-    }
-    const plan = validatedDemoPlan ?? (await this.planFilingRetrieval(company?.ticker ?? request.ticker, rulebook, company));
+      !parsedRulebook && creditAgreementUrl && keywordScan ? await extractCovenantRulesContext(creditAgreementUrl, keywordScan) : null;
+    const rulebook = request.rulebook ?? parsedRulebook ?? (await this.extractRulebook(request, creditAgreementUrl, ruleContext));
+    const plan = await this.planFilingRetrieval(company?.ticker ?? request.ticker, rulebook, company);
     const filing = await findLatestFiling(request.ticker, plan.filingType);
 
-    const validatedRetrievals = demoFinancialRetrievals(company?.ticker ?? request.ticker, filing.url);
     const retrievals = [];
-    if (validatedRetrievals) {
-      this.think("retrieval", "Using validated SEC filing evidence for known demo workflow.", {
-        filingUrl: filing.url,
-        retrievalCount: validatedRetrievals.length,
-        lineItemCount: validatedRetrievals.flatMap((retrieval) => retrieval.lineItems).length
-      });
-      retrievals.push(...validatedRetrievals);
-    } else {
-      for (const query of plan.retrievalQueries) {
-        this.think("retrieval", `Searching SEC filing for: ${query}`, { query, filingUrl: filing.url });
-        retrievals.push(
-          await retrieveFinancialContext({
-            documentUrl: filing.url,
-            query,
-            model: "prime",
-            reasoning: `Needed to evaluate ${rulebook.rules.map((rule) => rule.name).join(", ")}.`
-          })
-        );
-      }
+    for (const query of plan.retrievalQueries) {
+      this.think("retrieval", `Searching SEC filing for: ${query}`, { query, filingUrl: filing.url });
+      retrievals.push(
+        await retrieveFinancialContext({
+          documentUrl: filing.url,
+          query,
+          model: "prime",
+          reasoning: `Needed to evaluate ${rulebook.rules.map((rule) => rule.name).join(", ")}.`
+        })
+      );
     }
 
     this.think("calculation", "Computing covenant ratios with extracted line items.");
     const calculations = calculateCovenants(rulebook.rules, retrievals);
-    const validatedReflectiveChecks = demoReflectiveChecks(company?.ticker ?? request.ticker, filing.url);
-    if (validatedReflectiveChecks) {
-      this.think("retrieval", "Using validated reflective checks for known demo workflow.", {
-        filingUrl: filing.url,
-        checkCount: validatedReflectiveChecks.length
-      });
-    }
-    const reflectiveChecks = validatedReflectiveChecks ?? (await this.runReflectiveRetrieval(filing.url, rulebook));
+    const reflectiveChecks = await this.runReflectiveRetrieval(filing.url, rulebook);
     const codeAnalyses = await this.runCodeAnalyses(rulebook, calculations, retrievals);
     const externalContext = await this.maybeSearchExternalContext(company?.ticker ?? request.ticker.toUpperCase(), calculations);
     const actionPlan = this.buildActionPlan(company?.ticker ?? request.ticker.toUpperCase(), calculations, externalContext);
@@ -329,6 +296,17 @@ export class AgentEngine {
     rulebook: CovenantRulebook,
     company: Awaited<ReturnType<typeof resolveCompanyTicker>>
   ): Promise<FilingPlan> {
+    const ruleBasedPlan = buildRuleBasedPlan(ticker, rulebook, company);
+    if (ruleBasedPlan) {
+      this.think("planning", "Built filing retrieval plan from extracted covenant metrics.", {
+        ticker,
+        cik: company?.cik,
+        companyName: company?.title,
+        retrievalQueries: ruleBasedPlan.retrievalQueries
+      });
+      return ruleBasedPlan;
+    }
+
     this.think("planning", "Planning SEC filing retrieval based on extracted covenant rules.", {
       ticker,
       cik: company?.cik,
@@ -355,6 +333,48 @@ export class AgentEngine {
   }
 }
 
+function buildRuleBasedPlan(
+  ticker: string,
+  rulebook: CovenantRulebook,
+  company: Awaited<ReturnType<typeof resolveCompanyTicker>>
+): FilingPlan | null {
+  if (rulebook.rules.length === 0) return null;
+
+  const requiredLineItems = new Set<string>();
+  const retrievalQueries = new Set<string>();
+
+  for (const rule of rulebook.rules) {
+    if (rule.metric === "debt_to_ebitda") {
+      requiredLineItems.add("total debt");
+      requiredLineItems.add("EBITDA");
+      retrievalQueries.add("total debt current maturities long term debt balance sheet");
+      retrievalQueries.add("net income income tax expense interest expense depreciation amortization EBITDA reconciliation");
+    }
+    if (rule.metric === "interest_coverage") {
+      requiredLineItems.add("EBITDA");
+      requiredLineItems.add("interest expense");
+      retrievalQueries.add("net income income tax expense interest expense depreciation amortization EBITDA reconciliation");
+    }
+    if (rule.metric === "minimum_liquidity") {
+      requiredLineItems.add("cash and liquidity");
+      retrievalQueries.add("cash cash equivalents availability liquidity revolving credit facility");
+    }
+  }
+
+  if (retrievalQueries.size === 0) return null;
+
+  return {
+    ticker: ticker.toUpperCase(),
+    cik: company?.cik,
+    companyName: company?.title,
+    filingType: "10-Q",
+    targetPeriod: "latest",
+    requiredLineItems: [...requiredLineItems],
+    retrievalQueries: [...retrievalQueries],
+    rationale: "Map extracted covenant metrics to the SEC filing line items needed for calculation."
+  };
+}
+
 function fallbackRulebook(
   request: AuditRequest,
   creditAgreementUrl: string | null,
@@ -362,28 +382,22 @@ function fallbackRulebook(
 ): CovenantRulebook {
   return {
     borrower: request.ticker.toUpperCase(),
-    agreementName: "Deterministic covenant extraction profile",
+    agreementName: "Unresolved covenant rulebook",
     extractedAt: new Date().toISOString(),
-    rules: [
-      {
-        id: "max-debt-to-ebitda",
-        name: "Maximum Debt to EBITDA",
-        metric: "debt_to_ebitda",
-        operator: "<=",
-        threshold: 3.5,
-        unit: "ratio",
-        period: "trailing_twelve_months",
-        citations: [
+    rules: ruleContext?.citations[0]
+      ? [
           {
-            source: creditAgreementUrl ?? "credit-agreement",
-            locator: ruleContext?.citations[0]?.locator ?? "financial-covenants",
-            excerpt:
-              ruleContext?.citations[0]?.excerpt ??
-              "The agent could not validate a stricter covenant limit from the available agreement context, so it applied the baseline debt-to-EBITDA monitoring profile for review."
+            id: "unresolved-covenant-review",
+            name: "Covenant requires human review",
+            metric: "custom",
+            operator: ">=",
+            threshold: 0,
+            unit: "ratio",
+            period: "trailing_twelve_months",
+            citations: [ruleContext.citations[0]]
           }
         ]
-      }
-    ]
+      : []
   };
 }
 

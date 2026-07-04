@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { vultrDocumentCollections } from "../db/schema";
-import type { Citation, CovenantKeywordScan, FinancialLineItem, RetrievalBlock } from "../types";
+import type { Citation, CovenantKeywordScan, CovenantRule, CovenantRulebook, FinancialLineItem, RetrievalBlock } from "../types";
 import { llmClient, type VectorSearchResult } from "./vultr";
 
 export type RetrieverRequest = {
@@ -23,6 +23,17 @@ export const COVENANT_DISCOVERY_KEYWORDS = [
 
 export async function scanCovenantKeywords(documentUrl: string): Promise<CovenantKeywordScan> {
   const keywords = [...COVENANT_DISCOVERY_KEYWORDS];
+  const documentText = await fetchDocumentText(documentUrl);
+  const textHits = keywordHitsFromText(documentUrl, documentText, keywords);
+  if (textHits.some((hit) => hit.found)) {
+    return {
+      documentUrl,
+      model: "flash",
+      keywords,
+      hits: textHits
+    };
+  }
+
   const collection = await ensureDocumentCollection(documentUrl);
 
   if (collection) {
@@ -57,6 +68,17 @@ export async function scanCovenantKeywords(documentUrl: string): Promise<Covenan
 }
 
 export async function retrieveFinancialContext(request: RetrieverRequest): Promise<RetrievalBlock> {
+  const documentLineItems = await inferLineItemsFromDocument(request.documentUrl, request.query);
+  if (documentLineItems.length > 0) {
+    return {
+      query: request.query,
+      reasoning: request.reasoning,
+      model: request.model ?? "prime",
+      lineItems: documentLineItems,
+      citations: uniqueCitations(documentLineItems.flatMap((item) => item.citations))
+    };
+  }
+
   const collection = await ensureDocumentCollection(request.documentUrl);
   if (collection) {
     const rawResults = await searchExpanded(collection.collectionId, request.query);
@@ -107,6 +129,44 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
         "Live document retrieval was unavailable for this request; no measured line items were extracted."
       )
     ]
+  };
+}
+
+export async function extractCovenantRulebookFromDocument(documentUrl: string, borrower: string): Promise<CovenantRulebook | null> {
+  const documentText = await fetchDocumentText(documentUrl, Number(process.env.COVENANT_EXTRACTION_MAX_DOCUMENT_CHARS ?? 1_500_000));
+  const section = extractFinancialCovenantSection(documentText);
+  if (!section) return null;
+
+  const rules: CovenantRule[] = [];
+  const leverageRule = extractRatioRule({
+    documentUrl,
+    section,
+    name: "Total Net Leverage Ratio",
+    metric: "debt_to_ebitda",
+    operator: "<=",
+    trigger: /Total\s+Net\s+Leverage\s+Ratio/i,
+    comparator: /(?:greater\s+than|exceed)/i
+  });
+  if (leverageRule) rules.push(leverageRule);
+
+  const coverageRule = extractRatioRule({
+    documentUrl,
+    section,
+    name: "Interest Coverage Ratio",
+    metric: "interest_coverage",
+    operator: ">=",
+    trigger: /Interest\s+Coverage\s+Ratio/i,
+    comparator: /less\s+than/i
+  });
+  if (coverageRule) rules.push(coverageRule);
+
+  if (rules.length === 0) return null;
+
+  return {
+    borrower,
+    agreementName: "Credit agreement extracted financial covenants",
+    extractedAt: new Date().toISOString(),
+    rules
   };
 }
 
@@ -184,6 +244,72 @@ function systemCitation(source: string, locator: string, excerpt: string): Citat
   return { source, locator, excerpt };
 }
 
+function keywordHitsFromText(documentUrl: string, text: string, keywords: readonly string[]): CovenantKeywordScan["hits"] {
+  return keywords.map((keyword) => {
+    const index = text.toLowerCase().indexOf(keyword.toLowerCase());
+    if (index < 0) return { keyword, found: false, citations: [] };
+    return {
+      keyword,
+      found: true,
+      citations: [
+        {
+          source: documentUrl,
+          locator: `document-text-keyword-${slug(keyword)}`,
+          excerpt: excerptAt(text, index, 500)
+        }
+      ]
+    };
+  });
+}
+
+function extractFinancialCovenantSection(text: string): string | null {
+  const matches = [...text.matchAll(/section\s+7\.11\s+financial\s+covenants?/gi)];
+  const bodyMatch = matches.at(-1);
+  if (bodyMatch?.index === undefined) return null;
+  const rest = text.slice(bodyMatch.index);
+  const endMatch = /article\s+viii|section\s+8\.01/i.exec(rest);
+  return rest.slice(0, endMatch?.index ?? Math.min(rest.length, 8_000));
+}
+
+function extractRatioRule(input: {
+  documentUrl: string;
+  section: string;
+  name: string;
+  metric: CovenantRule["metric"];
+  operator: CovenantRule["operator"];
+  trigger: RegExp;
+  comparator: RegExp;
+}): CovenantRule | null {
+  const triggerMatch = input.trigger.exec(input.section);
+  if (triggerMatch?.index === undefined) return null;
+  const afterTrigger = input.section.slice(triggerMatch.index, triggerMatch.index + 1_800);
+  const comparatorMatch = input.comparator.exec(afterTrigger);
+  if (comparatorMatch?.index === undefined) return null;
+  const afterComparator = afterTrigger.slice(comparatorMatch.index);
+  const ratioMatch = /(\d+(?:\.\d+)?)\s+to\s+1\.00/i.exec(afterComparator);
+  if (!ratioMatch) return null;
+
+  const threshold = Number(ratioMatch[1]);
+  if (!Number.isFinite(threshold)) return null;
+
+  return {
+    id: slug(input.name),
+    name: input.name,
+    metric: input.metric,
+    operator: input.operator,
+    threshold,
+    unit: "ratio",
+    period: "trailing_twelve_months",
+    citations: [
+      {
+        source: input.documentUrl,
+        locator: `document-text-covenant-${slug(input.name)}`,
+        excerpt: excerptAt(input.section, triggerMatch.index, 1_000)
+      }
+    ]
+  };
+}
+
 type DocumentCollection = {
   collectionId: string;
   collectionName: string;
@@ -247,7 +373,7 @@ async function indexDocumentIntoCollection(collectionId: string, documentUrl: st
   return addDocumentChunks(collectionId, documentText, documentUrl);
 }
 
-async function fetchDocumentText(documentUrl: string): Promise<string> {
+async function fetchDocumentText(documentUrl: string, maxChars = Number(process.env.VULTR_RETRIEVER_MAX_DOCUMENT_CHARS ?? 240_000)): Promise<string> {
   const response = await fetch(documentUrl, {
     headers: {
       "User-Agent": process.env.SEC_USER_AGENT ?? "MyHackathonProject (email@example.com)",
@@ -257,21 +383,28 @@ async function fetchDocumentText(documentUrl: string): Promise<string> {
   if (!response.ok) return "";
 
   const text = await response.text();
-  return normalizeDocumentText(text).slice(0, Number(process.env.VULTR_RETRIEVER_MAX_DOCUMENT_CHARS ?? 240_000));
+  return normalizeDocumentText(text).slice(0, maxChars);
 }
 
 function normalizeDocumentText(text: string): string {
-  return text
+  return decodeHtmlEntities(text)
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#160;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(Number.parseInt(code, 16)));
 }
 
 async function addDocumentChunks(collectionId: string, documentText: string, documentUrl: string): Promise<boolean> {
@@ -330,6 +463,24 @@ async function inferLineItems(documentUrl: string, query: string, rawResults: Ve
   return mergeLineItems(fromResults, fromDocument);
 }
 
+async function inferLineItemsFromDocument(documentUrl: string, query: string): Promise<FinancialLineItem[]> {
+  if (!/debt|ebitda|net income|interest|tax|depreciation|amortization|coverage/i.test(query)) return [];
+  const documentText = await fetchDocumentText(documentUrl);
+  if (!documentText) return [];
+
+  const items: FinancialLineItem[] = [];
+  if (/debt/i.test(query)) {
+    const debtItem = inferTotalDebtFromText(documentUrl, documentText);
+    if (debtItem) items.push(debtItem);
+  }
+
+  if (/ebitda|net income|interest|tax|depreciation|amortization|coverage/i.test(query)) {
+    items.push(...inferEbitdaComponentsFromText(documentUrl, documentText));
+  }
+
+  return mergeLineItems([], items);
+}
+
 function inferLineItemsFromResults(documentUrl: string, query: string, rawResults: VectorSearchResult[]): FinancialLineItem[] {
   const text = rawResults.map((result) => result.content).join(" ");
   const items: FinancialLineItem[] = [];
@@ -364,6 +515,26 @@ function inferLineItemsFromResults(documentUrl: string, query: string, rawResult
   return items;
 }
 
+function inferTotalDebtFromText(documentUrl: string, text: string): FinancialLineItem | null {
+  const multiplier = inferFinancialScale(text, documentUrl);
+  const match = /total\s+debt\s+\$?\s*(\d{1,3}(?:,\s*\d{3})+|\d+(?:\.\d+)?)/i.exec(text);
+  if (match?.index === undefined) return null;
+
+  return {
+    name: "Total Debt",
+    value: parseFinancialNumber(match[1]) * multiplier,
+    unit: "usd",
+    period: "latest retrieved period",
+    citations: [
+      {
+        source: documentUrl,
+        locator: "document-text-total-debt",
+        excerpt: excerptAt(text, match.index, 500)
+      }
+    ]
+  };
+}
+
 function inferEbitdaComponentsFromText(documentUrl: string, text: string): FinancialLineItem[] {
   const items: FinancialLineItem[] = [];
   const multiplier = inferFinancialScale(text, documentUrl);
@@ -386,7 +557,7 @@ function inferEbitdaComponentsFromText(documentUrl: string, text: string): Finan
       citations: [
         {
           source: documentUrl,
-          locator: component.name.toLowerCase().replaceAll(" ", "-"),
+          locator: `document-text-${slug(component.name)}`,
           excerpt: parsed.excerpt.slice(0, 500)
         }
       ]
@@ -483,6 +654,30 @@ function isExtraction(value: unknown): value is RetrieverExtraction {
     Array.isArray(payload.citations) &&
     payload.citations.every(isCitation)
   );
+}
+
+function uniqueCitations(citations: Citation[]): Citation[] {
+  const seen = new Set<string>();
+  const result: Citation[] = [];
+  for (const citation of citations) {
+    const key = `${citation.source}:${citation.locator}:${citation.excerpt.slice(0, 80)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(citation);
+  }
+  return result;
+}
+
+function excerptAt(text: string, index: number, length: number): string {
+  const start = Math.max(0, index - Math.floor(length / 3));
+  return text.slice(start, Math.min(text.length, start + length)).trim();
+}
+
+function slug(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function isLineItem(value: unknown): value is FinancialLineItem {

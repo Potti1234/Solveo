@@ -121,4 +121,4 @@ curl -X POST http://localhost:8001/api/what-if/run \
 
 The endpoint writes and executes a Python stress script, returning the code, assumptions, and result.
 
-The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning and document retrieval use the configured Vultr inference endpoint. Without a live key, deterministic local extraction keeps the backend usable during development.
+The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_LOCAL_MODE` is not true, reasoning and document retrieval use the configured Vultr inference endpoint. Without a live key, deterministic local extraction keeps the backend usable during development.
