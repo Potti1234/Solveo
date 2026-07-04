@@ -1,0 +1,82 @@
+{
+  "schema_note": "Example metadata template only. Copy or adapt this file when PDFs are added; filenames and metadata can be changed freely.",
+  "documents": [
+    {
+      "id": "guest-recovery-compensation",
+      "title": "Guest Recovery and Compensation Policy",
+      "filename": "example-guest-recovery-compensation-policy.pdf",
+      "category": "guest_recovery_compensation_policy",
+      "description": "Guidance for compensation thresholds, refund eligibility, service recovery gestures, and documentation expectations.",
+      "used_for": [
+        "evaluating refund or compensation requests",
+        "grounding guest recovery decisions in hotel policy"
+      ]
+    },
+    {
+      "id": "loyalty-vip-handling",
+      "title": "Loyalty and VIP Handling Policy",
+      "filename": "example-loyalty-vip-handling-policy.pdf",
+      "category": "loyalty_vip_handling_policy",
+      "description": "Internal guidance for loyalty-tier recognition, VIP escalation, amenities, and service expectations.",
+      "used_for": [
+        "checking VIP handling requirements",
+        "identifying loyalty-related escalation paths"
+      ]
+    },
+    {
+      "id": "housekeeping-room-quality",
+      "title": "Housekeeping SOP and Room Quality Manual",
+      "filename": "example-housekeeping-sop-room-quality-manual.pdf",
+      "category": "housekeeping_sop_room_quality_manual",
+      "description": "Room inspection standards, housekeeping procedures, quality checks, and remediation expectations.",
+      "used_for": [
+        "assessing cleanliness or room-quality complaints",
+        "supporting housekeeping-related evidence review"
+      ]
+    },
+    {
+      "id": "maintenance-escalation",
+      "title": "Maintenance Escalation Manual",
+      "filename": "example-maintenance-escalation-manual.pdf",
+      "category": "maintenance_escalation_manual",
+      "description": "Procedures for maintenance triage, severity levels, follow-up windows, and guest-impact escalation.",
+      "used_for": [
+        "classifying maintenance issues",
+        "checking whether escalation timelines were met"
+      ]
+    },
+    {
+      "id": "front-desk-complaint-handling",
+      "title": "Front Desk Complaint Handling Playbook",
+      "filename": "example-front-desk-complaint-handling-playbook.pdf",
+      "category": "front_desk_complaint_handling_playbook",
+      "description": "Front desk workflows for receiving, logging, de-escalating, and routing guest complaints.",
+      "used_for": [
+        "reviewing complaint intake quality",
+        "grounding response tone and escalation decisions"
+      ]
+    },
+    {
+      "id": "historical-case-resolution",
+      "title": "Historical Case Resolution Guide",
+      "filename": "example-historical-case-resolution-guide.pdf",
+      "category": "historical_case_resolution_guide",
+      "description": "Examples of prior case outcomes and resolution patterns for similar guest issues.",
+      "used_for": [
+        "comparing similar historical resolutions",
+        "supporting consistent decision making"
+      ]
+    },
+    {
+      "id": "brand-standards-guest-experience",
+      "title": "Brand Standards Guest Experience Manual",
+      "filename": "example-brand-standards-guest-experience-manual.pdf",
+      "category": "brand_standards_guest_experience_manual",
+      "description": "Brand-level standards for guest experience, service quality, communication, and recovery expectations.",
+      "used_for": [
+        "checking service standards",
+        "grounding brand-aligned guest responses"
+      ]
+    }
+  ]
+}
