@@ -34,6 +34,16 @@ Docker alternative:
 docker compose up
 ```
 
+TypeScript Pi backend alternative:
+
+```bash
+cd pibackend
+bun install
+bun run dev
+```
+
+Then point the frontend at `http://localhost:8001` with `NEXT_PUBLIC_API_URL=http://localhost:8001`. This second backend uses Elysia endpoints, Drizzle with SQLite, Pi-compatible tool wrappers, and the existing seed data.
+
 If Vultr keys are not present, the single LLM client in `backend/app/services/llm.py` uses deterministic demo fallbacks. If Gradium is not configured, voicemail upload and text-to-speech controls are hidden.
 
 ## Environment

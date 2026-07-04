@@ -6,3 +6,7 @@ frontend/node_modules/
 frontend/npm-debug.log*
 .env
 .venv/
+pibackend/node_modules/
+pibackend/solveo_pi.db
+pibackend/*.log
+pibackend/drizzle/
