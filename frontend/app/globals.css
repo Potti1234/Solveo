@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f5f7f8;
+  color: #182026;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+a,
+input {
+  outline-color: #0f766e;
+}
+
+.icon-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  border: 1px solid #cfd6dc;
+  background: #ffffff;
+  padding: 8px 12px;
+  color: #182026;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.icon-button:hover {
+  border-color: #0f766e;
+  background: #eef8f6;
+}
+
+.icon-button:active {
+  transform: translateY(1px);
+}
+
+.icon-button.primary {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.icon-button.primary:hover {
+  background: #0b5f59;
+}
+
+.status-pill {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid #d9dee2;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}

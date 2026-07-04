@@ -1,0 +1,17 @@
+{
+  "id": "msg_mold_214",
+  "received_at": "2026-07-04T10:36:00Z",
+  "channel": "review",
+  "sender": "milo.hart@example.com",
+  "guest_name": "Milo Hart",
+  "room": "214",
+  "subject": "Review: mold and filth in bathroom",
+  "body": "Posting this publicly because the bathroom in Room 214 was filthy and had mold by the vanity. I attached a photo. I want a refund before I update the review.",
+  "attachments": [
+    {
+      "filename": "water_stain.png",
+      "path": "seed/images/water_stain.png",
+      "kind": "image"
+    }
+  ]
+}

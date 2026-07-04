@@ -1,0 +1,17 @@
+{
+  "id": "msg_ac_312",
+  "received_at": "2026-07-04T14:55:00Z",
+  "channel": "email",
+  "sender": "mei.tan@example.com",
+  "guest_name": "Mei Tan",
+  "room": "312",
+  "subject": "AC not cooling",
+  "body": "Room 312 has not cooled down since check-in. The hallway also feels warm.",
+  "attachments": [
+    {
+      "filename": "ac_vent.png",
+      "path": "seed/images/ac_vent.png",
+      "kind": "image"
+    }
+  ]
+}

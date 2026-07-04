@@ -1,0 +1,11 @@
+{
+  "id": "msg_key_303",
+  "received_at": "2026-07-04T07:50:00Z",
+  "channel": "whatsapp",
+  "sender": "sofia.costa@example.com",
+  "guest_name": "Sofia Costa",
+  "room": "303",
+  "subject": "Keycard reader issue",
+  "body": "My keycard reader blinked red twice last night before opening. Can you check it?",
+  "attachments": []
+}

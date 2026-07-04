@@ -1,0 +1,1 @@
+Wall thermostat display shows error code E17 and room temperature of 82F.

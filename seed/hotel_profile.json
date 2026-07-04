@@ -1,0 +1,23 @@
+{
+  "hotel_id": "CC-DEMO-001",
+  "name": "The Alder & Finch Hotel",
+  "property_type": "boutique hotel",
+  "timezone": "America/New_York",
+  "address": "1140 Harbor Row, Portland, ME",
+  "rooms": {
+    "floors": 4,
+    "total": 48,
+    "inventory": [
+      "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112",
+      "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "214",
+      "301", "302", "303", "304", "305", "306", "307", "308", "309", "310", "311", "312",
+      "401", "402", "403", "404", "405", "406", "407", "408", "409", "410", "411", "412"
+    ]
+  },
+  "operations": {
+    "general_manager": "Priya Nair",
+    "maintenance_lead": "Mateo Rivera",
+    "guest_relations_lead": "Ellen Park",
+    "housekeeping_lead": "Lucia Baptiste"
+  }
+}

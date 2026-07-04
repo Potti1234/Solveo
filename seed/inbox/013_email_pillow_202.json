@@ -1,0 +1,11 @@
+{
+  "id": "msg_pillow_202",
+  "received_at": "2026-07-04T09:07:00Z",
+  "channel": "email",
+  "sender": "oscar.diaz@example.com",
+  "guest_name": "Oscar Diaz",
+  "room": "202",
+  "subject": "Pillowcase stain",
+  "body": "There was a stain on one pillowcase in 202. Housekeeping swapped it but I wanted to document it.",
+  "attachments": []
+}

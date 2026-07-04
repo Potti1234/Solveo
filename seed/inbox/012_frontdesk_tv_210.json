@@ -1,0 +1,11 @@
+{
+  "id": "msg_tv_210",
+  "received_at": "2026-07-04T16:22:00Z",
+  "channel": "front_desk",
+  "sender": "victor.ng@example.com",
+  "guest_name": "Victor Ng",
+  "room": "210",
+  "subject": "Neighbor TV too loud",
+  "body": "Guest at 210 reported loud TV noise from adjacent room after quiet hours warning.",
+  "attachments": []
+}

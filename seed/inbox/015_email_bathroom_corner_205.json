@@ -1,0 +1,17 @@
+{
+  "id": "msg_corner_205",
+  "received_at": "2026-07-04T10:10:00Z",
+  "channel": "email",
+  "sender": "fatima.rahman@example.com",
+  "guest_name": "Fatima Rahman",
+  "room": "205",
+  "subject": "Bathroom caulk looks rough",
+  "body": "The bathroom caulk in 205 looks uneven near the shower corner. It is not urgent but should be checked.",
+  "attachments": [
+    {
+      "filename": "bathroom_corner.png",
+      "path": "seed/images/bathroom_corner.png",
+      "kind": "image"
+    }
+  ]
+}

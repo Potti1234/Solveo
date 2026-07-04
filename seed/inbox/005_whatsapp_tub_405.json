@@ -1,0 +1,11 @@
+{
+  "id": "msg_tub_405",
+  "received_at": "2026-07-04T14:02:00Z",
+  "channel": "whatsapp",
+  "sender": "martin.cole@example.com",
+  "guest_name": "Martin Cole",
+  "room": "405",
+  "subject": "Tub stopper stuck",
+  "body": "The tub in 405 will not drain because the stopper is stuck. Please send someone up.",
+  "attachments": []
+}
