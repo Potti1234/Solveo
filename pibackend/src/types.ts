@@ -1,82 +1,85 @@
 export type Citation = {
   source: string;
   locator: string;
-  quote: string;
+  excerpt: string;
 };
 
-export type Attachment = {
-  filename: string;
-  path: string;
-  kind: string;
-};
-
-export type InboxMessage = {
+export type CovenantRule = {
   id: string;
-  received_at: string;
-  channel: string;
-  sender: string;
-  guest_name: string;
-  room: string | null;
-  subject: string;
-  body: string;
-  attachments: Attachment[];
-  status?: string;
-};
-
-export type PlanStep = {
-  id: string;
-  tool: ToolName;
-  reason: string;
-  input: Record<string, unknown>;
-};
-
-export type InvestigationPlan = {
-  steps: PlanStep[];
-};
-
-export type ToolResult = {
-  tool: ToolName;
-  data: Record<string, unknown>;
+  name: string;
+  metric: "debt_to_ebitda" | "minimum_liquidity" | "interest_coverage" | "custom";
+  operator: "<=" | ">=";
+  threshold: number;
+  unit: "ratio" | "usd";
+  period: "quarterly" | "annual" | "trailing_twelve_months";
   citations: Citation[];
 };
 
-export type CompensationDecision = {
-  amount: number;
-  policy_clause: string;
+export type CovenantRulebook = {
+  borrower: string;
+  agreementName: string;
+  extractedAt: string;
+  rules: CovenantRule[];
+};
+
+export type FilingPlan = {
+  ticker: string;
+  filingType: "10-Q" | "10-K";
+  targetPeriod: string;
+  requiredLineItems: string[];
+  retrievalQueries: string[];
   rationale: string;
 };
 
-export type Adjudication = {
-  verdict: "legitimate" | "partially_legitimate" | "unsubstantiated";
-  confidence: number;
-  reasoning: string;
-  policy_basis: Citation[];
-  compensation: CompensationDecision | null;
-  escalate: boolean;
-};
-
-export type AgentEvent = {
-  event_type: string;
-  title: string;
-  payload?: Record<string, unknown>;
-};
-
-export type ActionResult = {
-  response_draft: string;
-  actions_taken: string[];
+export type FinancialLineItem = {
+  name: string;
+  value: number;
+  unit: "usd" | "ratio";
+  period: string;
   citations: Citation[];
 };
 
-export type ToolPayload = {
-  message: InboxMessage;
-  evidence: ToolResult[];
-  [key: string]: unknown;
+export type RetrievalBlock = {
+  query: string;
+  reasoning: string;
+  lineItems: FinancialLineItem[];
+  citations: Citation[];
 };
 
-export type ToolName =
-  | "bookings.lookup"
-  | "maintenance.search"
-  | "policy.search"
-  | "guest_history.lookup"
-  | "vision.verify"
-  | "compensation.evaluate";
+export type CovenantCalculation = {
+  ruleId: string;
+  actual: number;
+  threshold: number;
+  operator: CovenantRule["operator"];
+  compliant: boolean;
+  formula: string;
+  citations: Citation[];
+};
+
+export type ComplianceMemo = {
+  ticker: string;
+  status: "compliant" | "breach" | "needs_review";
+  summary: string;
+  calculations: CovenantCalculation[];
+  citations: Citation[];
+};
+
+export type AuditThought = {
+  phase: "rule_extraction" | "planning" | "retrieval" | "calculation" | "reporting";
+  message: string;
+  payload?: Record<string, unknown>;
+};
+
+export type AuditRequest = {
+  ticker: string;
+  creditAgreementUrl?: string;
+  rulebook?: CovenantRulebook;
+};
+
+export type AuditRunResult = {
+  thoughts: AuditThought[];
+  rulebook: CovenantRulebook;
+  plan: FilingPlan;
+  retrievals: RetrievalBlock[];
+  memo: ComplianceMemo;
+};
