@@ -5,6 +5,7 @@ import { createSchema } from "./db/client";
 import { seedIfNeeded } from "./db/seed";
 import { seedDir } from "./lib/paths";
 import { detectPatterns } from "./agent/actions";
+import { agentRoutes } from "./routes/agent";
 import { caseRoutes } from "./routes/cases";
 import { inboxRoutes } from "./routes/inbox";
 import { opsRoutes } from "./routes/ops";
@@ -33,6 +34,7 @@ const app = new Elysia()
     return file;
   })
   .get("/api/health", () => ({ status: "ok" }))
+  .use(agentRoutes)
   .use(inboxRoutes)
   .use(caseRoutes)
   .use(opsRoutes)

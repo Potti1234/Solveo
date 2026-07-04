@@ -4,6 +4,7 @@ backend/concierge_court.db
 node_modules/
 frontend/.next/
 frontend/node_modules/
+frontend/*.log
 frontend/npm-debug.log*
 .env
 .venv/
