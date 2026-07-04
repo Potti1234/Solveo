@@ -75,7 +75,25 @@ export type ComplianceMemo = {
   status: "compliant" | "breach" | "needs_review";
   summary: string;
   calculations: CovenantCalculation[];
+  codeAnalyses?: CodeExecutionResult[];
   citations: Citation[];
+};
+
+export type CodeLanguage = "python" | "typescript";
+
+export type CodeExecutionRequest = {
+  language: CodeLanguage;
+  code: string;
+};
+
+export type CodeExecutionResult = {
+  language: CodeLanguage;
+  code: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  durationMs: number;
 };
 
 export type AuditThought = {
@@ -87,6 +105,7 @@ export type AuditThought = {
     | "planning"
     | "retrieval"
     | "calculation"
+    | "code_execution"
     | "reporting";
   message: string;
   payload?: Record<string, unknown>;
@@ -141,5 +160,6 @@ export type AuditRunResult = {
   rulebook: CovenantRulebook;
   plan: FilingPlan;
   retrievals: RetrievalBlock[];
+  codeAnalyses: CodeExecutionResult[];
   memo: ComplianceMemo;
 };

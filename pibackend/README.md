@@ -12,6 +12,7 @@ This folder now keeps only the reusable backend reference points needed by the r
 - SEC filing lookup placeholder.
 - Vultron retrieval placeholder.
 - Covenant calculation tool.
+- `execute_code` tool for Python/TypeScript analyst scripts.
 - AgentEngine skeleton for Plan -> Retrieve -> Calculate -> Report.
 
 ```bash
@@ -31,6 +32,8 @@ Useful endpoints:
 - `GET /api/health`
 - `GET /api/runtime`
 - `POST /api/audits/run`
+- `GET /api/tools/definitions`
+- `POST /api/tools/execute-code`
 - `GET /api/sec/tickers/search?q=apple`
 - `GET /api/sec/tickers/AAPL`
 - `GET /api/sec/filings/AAPL/exhibits/10-1`
@@ -46,6 +49,17 @@ bun run sec:discover-exhibits AAPL
 The SEC ticker cache is stored in `pibackend/vultr_audit.db` unless `DATABASE_PATH` is set. The agent uses this cache as its first lookup step to normalize ticker input to SEC CIK/company metadata before planning filing retrieval.
 
 SEC requests include `SEC_USER_AGENT`. Set it to a real project/contact string before production use.
+
+Code execution:
+
+```bash
+curl -X POST http://localhost:8001/api/tools/execute-code \
+  -H "Content-Type: application/json" \
+  -d "{\"language\":\"python\",\"code\":\"print(3.2 < 3.5)\"}"
+```
+
+The local executor is intended for hackathon development. For production, replace `src/tools/executeCode.ts`
+with an E2B or Docker-backed executor while keeping the same tool contract.
 
 Agent covenant discovery flow:
 

@@ -65,7 +65,7 @@ export class AgentEngine {
       citations: retrievals.flatMap((retrieval) => retrieval.citations)
     };
 
-    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, memo };
+    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, codeAnalyses: [], memo };
   }
 
   private async scanCreditAgreement(creditAgreementUrl: string) {

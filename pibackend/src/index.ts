@@ -3,6 +3,7 @@ import { cors } from "@elysiajs/cors";
 import { createSchema } from "./db/client";
 import { auditRoutes } from "./routes/audits";
 import { secRoutes } from "./routes/sec";
+import { toolRoutes } from "./routes/tools";
 import { llmClient } from "./services/vultr";
 
 createSchema();
@@ -26,6 +27,7 @@ const app = new Elysia()
   }))
   .use(auditRoutes)
   .use(secRoutes)
+  .use(toolRoutes)
   .listen(port);
 
 console.log(`Vultr-Audit backend listening on http://localhost:${app.server?.port ?? port}`);
