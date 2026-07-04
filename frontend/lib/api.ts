@@ -1,4 +1,4 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type Attachment = {
   filename: string;
@@ -58,6 +58,14 @@ export type AgentRuntime = {
   mode: string;
 };
 
+export type GuestChatResponse = {
+  message_id: string;
+  case_id: number;
+  assistant_message: string;
+  case: CaseRecord | null;
+  events: CaseEvent[];
+};
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -83,12 +91,19 @@ export async function getAgentRuntime(): Promise<AgentRuntime> {
     return await apiFetch<AgentRuntime>("/api/agent/runtime");
   } catch {
     return {
-      backend: API_URL.includes("8001") ? "pibackend" : "fastapi",
-      agent: API_URL.includes("8001") ? "pi-agent-core" : "python-runner",
-      database: API_URL.includes("8001") ? "drizzle-sqlite" : "sqlite",
+      backend: API_URL.includes("8000") ? "pibackend" : "fastapi",
+      agent: API_URL.includes("8000") ? "pi-agent-core" : "python-runner",
+      database: API_URL.includes("8000") ? "drizzle-sqlite" : "sqlite",
       model_provider: "vultr",
       live_model: false,
       mode: "runtime-check-unavailable"
     };
   }
+}
+
+export async function sendGuestChat(message: string): Promise<GuestChatResponse> {
+  return apiFetch<GuestChatResponse>("/api/agent/guest-chat", {
+    method: "POST",
+    body: JSON.stringify({ message })
+  });
 }

@@ -15,7 +15,7 @@ createSchema();
 seedIfNeeded();
 detectPatterns();
 
-const port = Number(process.env.PORT ?? 8001);
+const port = Number(process.env.PORT ?? 8000);
 
 const app = new Elysia()
   .use(
