@@ -198,3 +198,18 @@ export type ActionPlan = {
     }>;
   };
 };
+
+export type WhatIfRequest = {
+  ticker: string;
+  question: string;
+  baselineRatio?: number;
+  threshold?: number;
+  interestRateShockBps?: number;
+};
+
+export type WhatIfResult = {
+  ticker: string;
+  question: string;
+  assumptions: Record<string, unknown>;
+  execution: CodeExecutionResult;
+};

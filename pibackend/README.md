@@ -35,6 +35,7 @@ Useful endpoints:
 - `GET /api/tools/definitions`
 - `POST /api/tools/execute-code`
 - `POST /api/tools/web-search`
+- `POST /api/what-if/run`
 - `GET /api/sec/tickers/search?q=apple`
 - `GET /api/sec/tickers/AAPL`
 - `GET /api/sec/filings/AAPL/exhibits/10-1`
@@ -92,5 +93,15 @@ Triple-Check & Act:
 - Reflective retrieval searches `Subsequent Events` and management liquidity/debt language after the first calculation.
 - If a covenant is failing or within 10% of its limit, the agent calls `web_search` for recent 8-K, debt, refinancing, or covenant context.
 - The response includes `actionPlan` with a credit-officer summary, pre-filled borrower email, three borrower questions, and dashboard chart configuration.
+
+What-If Console:
+
+```bash
+curl -X POST http://localhost:8001/api/what-if/run \
+  -H "Content-Type: application/json" \
+  -d "{\"ticker\":\"AAPL\",\"question\":\"What if interest rates rise by another 1.5% next month?\",\"baselineRatio\":3.2,\"threshold\":3.5}"
+```
+
+The endpoint writes and executes a Python stress script, returning the code, assumptions, and result.
 
 The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.

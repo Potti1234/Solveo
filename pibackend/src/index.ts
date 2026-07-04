@@ -4,6 +4,7 @@ import { createSchema } from "./db/client";
 import { auditRoutes } from "./routes/audits";
 import { secRoutes } from "./routes/sec";
 import { toolRoutes } from "./routes/tools";
+import { whatIfRoutes } from "./routes/whatIf";
 import { llmClient } from "./services/vultr";
 
 createSchema();
@@ -28,6 +29,7 @@ const app = new Elysia()
   .use(auditRoutes)
   .use(secRoutes)
   .use(toolRoutes)
+  .use(whatIfRoutes)
   .listen(port);
 
 console.log(`Vultr-Audit backend listening on http://localhost:${app.server?.port ?? port}`);
