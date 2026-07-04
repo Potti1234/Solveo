@@ -12,13 +12,13 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class LLMClient:
-    """Single OpenAI-compatible client for Vultr chat and embeddings."""
+    """Single OpenAI-compatible client for Vultr chat and VultronRetriever rerank."""
 
     def __init__(self) -> None:
         self.api_key = os.getenv("VULTR_API_KEY", "")
         self.base_url = os.getenv("VULTR_BASE_URL", "https://api.vultrinference.com/v1").rstrip("/")
         self.chat_model = os.getenv("VULTR_CHAT_MODEL", "llama-3.1-70b-instruct")
-        self.embed_model = os.getenv("VULTR_EMBED_MODEL", "vultr-embed")
+        self.retriever_model = os.getenv("VULTR_RETRIEVER_MODEL", "vultr/VultronRetrieverFlash-Qwen3.5-0.8B")
         self.timeout = float(os.getenv("VULTR_TIMEOUT_SECONDS", "30"))
         self.demo_mode = os.getenv("VULTR_DEMO_MODE", "").lower() in {"1", "true", "yes"}
 
@@ -74,27 +74,24 @@ class LLMClient:
                     raise
         raise RuntimeError(last_error)
 
-    def embeddings(self, texts: list[str]) -> list[list[float]]:
+    def rerank_texts(self, query: str, documents: list[str], top_n: int) -> list[dict[str, Any]]:
         if not self.live:
-            return [_hash_embedding(text) for text in texts]
-        payload = {"model": self.embed_model, "input": texts}
+            return []
+        payload = {
+            "model": self.retriever_model,
+            "query": query,
+            "documents": documents,
+            "top_n": top_n,
+        }
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = httpx.post(
-            f"{self.base_url}/embeddings",
+            f"{self.base_url}/rerank",
             headers=headers,
             json=payload,
             timeout=self.timeout,
         )
         response.raise_for_status()
-        return [item["embedding"] for item in response.json()["data"]]
-
-
-def _hash_embedding(text: str, dims: int = 64) -> list[float]:
-    values = [0.0] * dims
-    for idx, char in enumerate(text.lower()):
-        values[(ord(char) + idx) % dims] += 1.0
-    norm = sum(v * v for v in values) ** 0.5 or 1.0
-    return [v / norm for v in values]
+        return list(response.json().get("results", []))
 
 
 llm_client = LLMClient()

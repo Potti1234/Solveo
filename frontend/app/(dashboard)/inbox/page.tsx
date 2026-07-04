@@ -54,7 +54,7 @@ export default function InboxPage() {
           <label className="icon-button cursor-pointer">
             {uploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
             Voicemail
-            <input className="hidden" type="file" accept="audio/*" onChange={(event) => uploadVoicemail(event.target.files?.[0] ?? null)} />
+            <input className="hidden" type="file" accept="audio/wav,audio/ogg,audio/opus" onChange={(event) => uploadVoicemail(event.target.files?.[0] ?? null)} />
           </label>
         ) : null}
       </div>

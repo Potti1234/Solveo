@@ -34,16 +34,17 @@ If Vultr keys are not present, the single LLM client in `backend/app/services/ll
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `VULTR_API_KEY` | For live LLM | API key for Vultr Serverless Inference. |
-| `VULTR_BASE_URL` | For live LLM | OpenAI-compatible Vultr endpoint. |
+| `VULTR_API_KEY` | For live LLM/retrieval | API key for Vultr Serverless Inference. |
+| `VULTR_BASE_URL` | For live LLM/retrieval | OpenAI-compatible Vultr endpoint. Defaults to `https://api.vultrinference.com/v1`. |
 | `VULTR_CHAT_MODEL` | For live LLM | Chat model for planning, adjudication, and responses. |
-| `VULTR_EMBED_MODEL` | For live retrieval | Embedding model for policy retrieval. |
+| `VULTR_RETRIEVER_MODEL` | For live retrieval | VultronRetriever model for `/rerank` policy retrieval. Defaults to `vultr/VultronRetrieverFlash-Qwen3.5-0.8B`. |
 | `VULTR_DEMO_MODE` | No | Set `true` to force deterministic local demo mode. |
 | `RETRIEVER_MODE` | No | `vultr` by default; use `fallback` for BM25 policy retrieval. |
 | `GRADIUM_API_KEY` | For voice | Enables STT voicemail intake and TTS playback. |
-| `GRADIUM_BASE_URL` | For voice | Gradium API base URL. |
-| `GRADIUM_STT_MODEL` | For voice | Gradium speech-to-text model. |
-| `GRADIUM_TTS_MODEL` | For voice | Gradium text-to-speech model. |
+| `GRADIUM_BASE_URL` | For voice | Gradium REST API base URL. Defaults to `https://api.gradium.ai/api`. |
+| `GRADIUM_STT_MODEL` | For voice | Gradium speech-to-text model. Defaults to `default`. |
+| `GRADIUM_TTS_VOICE_ID` | For voice | Gradium voice ID used for response playback. |
+| `GRADIUM_TTS_FORMAT` | For voice | Gradium TTS audio format. Defaults to `wav`. |
 | `DATABASE_PATH` | No | SQLite path. Defaults to the bundled local database under `backend/`. |
 | `NEXT_PUBLIC_API_URL` | Yes | Frontend URL for the FastAPI backend. |
 
@@ -61,8 +62,8 @@ If Vultr keys are not present, the single LLM client in `backend/app/services/ll
 
 - Frontend: Next.js 14 App Router, TypeScript, Tailwind, lucide icons.
 - Backend: FastAPI, SQLite, typed tools, explicit agent stages.
-- Retrieval: `Retriever` interface with Vultr embeddings by default and BM25 fallback.
-- Voice: Gradium STT/TTS routes, hidden in the UI unless `GRADIUM_API_KEY` is set.
+- Retrieval: `Retriever` interface with VultronRetriever rerank on Vultr Serverless Inference by default and BM25 fallback.
+- Voice: Gradium STT/TTS REST routes, hidden in the UI unless `GRADIUM_API_KEY` is set.
 - State: SQLite tables for inbox, cases, trace events, generated tickets, ops decisions, and alerts.
 
 Agent stages are intentionally separate:
@@ -85,7 +86,7 @@ Solveo/
   backend/
     app/
       agent/        # Planning, investigation, adjudication, actions, and runner
-      retrieval/    # Vultr embedding retrieval and BM25 fallback
+      retrieval/    # VultronRetriever rerank retrieval and BM25 fallback
       routes/       # FastAPI routes for inbox, cases, ops, and voice
       services/     # LLM client and provider integrations
       tools/        # Booking, policy, maintenance, vision, guest-history, compensation tools

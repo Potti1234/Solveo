@@ -4,7 +4,7 @@ import os
 
 from app.db import SEED_DIR
 from app.retrieval.fallback import FallbackRetriever
-from app.retrieval.vultr_embeddings import VultrEmbeddingsRetriever
+from app.retrieval.vultr_rerank import VultrRerankRetriever
 
 
 _retriever = None
@@ -18,5 +18,5 @@ def get_retriever():
     if mode == "fallback":
         _retriever = FallbackRetriever(SEED_DIR)
     else:
-        _retriever = VultrEmbeddingsRetriever(SEED_DIR)
+        _retriever = VultrRerankRetriever(SEED_DIR)
     return _retriever
