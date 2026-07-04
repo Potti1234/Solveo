@@ -22,11 +22,20 @@ The broader product goal is to reduce front-desk workload while keeping hotel st
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and add Vultr or Gradium keys if you have them.
-2. Run `make install`.
-3. Run `make dev`.
-4. Open `http://localhost:3000`.
-5. Run `make test` for the backend smoke tests.
+1. Install [Bun](https://bun.sh/) and Node.js 20+.
+2. Copy `.env.example` to `.env` and add Vultr or Gradium keys if you have them.
+3. Run `npm run install:all`.
+4. Run `npm run dev`.
+5. Open the URL printed by Next, normally `http://localhost:3000`.
+
+`npm run dev` starts both local development servers with hot reload:
+
+- Pi backend: `http://localhost:8001` via `bun --watch`
+- Next frontend: `http://localhost:3000` via `next dev`, or the next available port if 3000 is already in use
+
+The frontend defaults to `http://localhost:8001`. Override it with `NEXT_PUBLIC_API_URL` if you want to point at another backend.
+
+Run `make test` for the Python backend smoke tests.
 
 Docker alternative:
 
@@ -34,7 +43,7 @@ Docker alternative:
 docker compose up
 ```
 
-TypeScript Pi backend alternative:
+TypeScript Pi backend only:
 
 ```bash
 cd pibackend

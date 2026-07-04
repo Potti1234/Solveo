@@ -6,7 +6,7 @@ install:
 	cd pibackend && bun install
 
 dev:
-	cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 & cd frontend && npm run dev -- --hostname 0.0.0.0 --port 3000
+	npm run dev
 
 backend:
 	cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -18,7 +18,7 @@ pibackend:
 	cd pibackend && bun run dev
 
 pidev:
-	cd pibackend && bun run dev & cd frontend && npm run dev -- --hostname 0.0.0.0 --port 3000
+	npm run dev
 
 test:
 	cd backend && python -m pytest tests
