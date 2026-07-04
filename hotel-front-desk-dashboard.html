@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  HOTEL FRONT DESK — GUEST FEEDBACK DASHBOARD
+  ============================================================================
+  This is a static prototype with mock data. To wire it up to a real backend
+  and to the AI agents mentioned in the brief (triage / voice / retrieval /
+  planning agents), search for the "AI INTEGRATION POINT" comments below —
+  they mark every place mock data or local-only logic should be replaced.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Front Desk — Guest Feedback Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+/* ----------------------------------------------------------------------
+   DESIGN TOKENS
+   Concept: a hotel front-desk "operations board". The one bold signature
+   is the stats row, built to look like a mechanical split-flap board
+   (the kind found in old train stations / grand hotel lobbies) — it fits
+   a hospitality brief without leaning on the usual warm-serif AI look.
+   Everything else stays quiet: plain paper cards, a working grotesk,
+   a mono face reserved for numbers and timestamps only.
+------------------------------------------------------------------------- */
+:root{
+  --paper:#fafaf9;        /* main background, cool neutral, not cream */
+  --paper-line:#e2e0da;
+  --card:#ffffff;
+  --ink:#1b1b19;          /* near-black, not navy */
+  --ink-soft:#5c5a54;
+  --ink-faint:#93908a;
+
+  --board:#181816;        /* split-flap board + sidebar surface */
+  --board-line:#333330;
+  --flap:#f0c360;         /* split-flap amber-cream, warm but not terracotta */
+  --flap-dim:#8c8272;
+
+  --urgent:#c1443b;
+  --urgent-wash:#f9e9e7;
+  --important:#c07f21;
+  --important-wash:#f7ecd9;
+  --normal:#4c6b53;
+  --normal-wash:#e8efe8;
+  --ok:#3c7350;
+  --ok-wash:#e6f0e8;
+
+  --display:'Archivo', sans-serif;
+  --body:'Inter', -apple-system, sans-serif;
+  --mono:'JetBrains Mono', monospace;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:var(--body);
+  background:var(--paper);
+  color:var(--ink);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;}
+button{cursor:pointer;background:none;border:none;color:inherit;}
+button:focus-visible, .nav-item:focus-visible{
+  outline:2px solid var(--important);
+  outline-offset:2px;
+  border-radius:4px;
+}
+
+.layout{
+  display:grid;
+  grid-template-columns:248px 1fr;
+  min-height:100vh;
+}
+
+/* ---------------- SIDEBAR ---------------- */
+.sidebar{
+  background:var(--board);
+  color:var(--paper);
+  padding:2rem 1.4rem;
+  display:flex;
+  flex-direction:column;
+  gap:2.25rem;
+  border-right:1px solid var(--board-line);
+}
+.brand{display:flex;align-items:center;gap:.7rem;}
+.brand-mark{
+  width:34px;height:34px;
+  border-radius:6px;
+  background:var(--flap);
+  color:var(--board);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-weight:800;font-size:.95rem;
+}
+.brand-name{font-family:var(--display);font-weight:700;font-size:1.02rem;letter-spacing:-.01em;}
+.brand-sub{font-size:.68rem;color:var(--flap-dim);letter-spacing:.07em;text-transform:uppercase;margin-top:.1rem;}
+
+.nav{display:flex;flex-direction:column;gap:.2rem;flex:1;}
+.nav-item{
+  padding:.7rem .85rem;
+  border-radius:8px;
+  display:flex;align-items:center;gap:.75rem;
+  font-size:.85rem;font-weight:500;
+  color:rgba(250,250,249,0.5);
+  transition:background .15s, color .15s;
+}
+.nav-item:hover{background:rgba(250,250,249,0.06);color:var(--paper);}
+.nav-item.active{background:rgba(240,195,96,0.12);color:var(--paper);box-shadow:inset 2px 0 0 var(--flap);}
+.nav-count{
+  margin-left:auto;
+  background:var(--urgent);
+  color:#fff;
+  font-family:var(--mono);
+  font-size:.68rem;font-weight:600;
+  padding:.1rem .4rem;border-radius:4px;
+}
+.sidebar-foot{
+  padding-top:1.1rem;border-top:1px solid var(--board-line);
+  font-size:.72rem;color:var(--flap-dim);line-height:1.6;
+}
+.sidebar-foot strong{color:var(--paper);font-weight:600;}
+
+/* ---------------- MAIN ---------------- */
+.main{padding:2.1rem 2.6rem 3rem;overflow-y:auto;}
+
+.header{
+  display:flex;justify-content:space-between;align-items:flex-end;
+  margin-bottom:1.75rem;
+}
+.header h1{font-family:var(--display);font-weight:700;font-size:1.7rem;letter-spacing:-.01em;}
+.header p{color:var(--ink-soft);font-size:.88rem;margin-top:.3rem;}
+.header-actions{display:flex;align-items:center;gap:1rem;}
+.icon-btn{
+  width:38px;height:38px;border-radius:8px;
+  border:1px solid var(--paper-line);
+  background:var(--card);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--ink-soft);position:relative;
+}
+.icon-btn .dot{
+  position:absolute;top:7px;right:7px;width:6px;height:6px;
+  border-radius:999px;background:var(--urgent);border:1.5px solid var(--card);
+}
+.profile{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.35rem .85rem .35rem .35rem;
+  background:var(--card);border:1px solid var(--paper-line);border-radius:8px;
+}
+.profile-avatar{
+  width:30px;height:30px;border-radius:6px;
+  background:var(--ink);color:var(--paper);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+}
+.profile-name{font-size:.78rem;font-weight:600;}
+.profile-role{font-size:.68rem;color:var(--ink-faint);}
+
+/* ---------------- SIGNATURE: SPLIT-FLAP STATS BOARD ---------------- */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: the four values below (#board-pending,
+   #board-approved, #board-satisfaction, #board-comp) are set from the
+   `reviews` array and two counters at the bottom of the script. Point
+   those at your real metrics endpoint (e.g. GET /api/metrics/today). */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+.board{
+  background:var(--board);
+  border-radius:12px;
+  padding:1.4rem 1.6rem;
+  margin-bottom:1.75rem;
+  display:flex;
+}
+.board-cell{flex:1;padding:0 1.4rem;border-left:1px solid var(--board-line);}
+.board-cell:first-child{border-left:none;padding-left:0;}
+.board-label{
+  font-family:var(--mono);font-size:.66rem;font-weight:500;
+  text-transform:uppercase;letter-spacing:.1em;
+  color:var(--flap-dim);margin-bottom:.55rem;
+}
+.flap-value{
+  display:inline-flex;
+  font-family:var(--mono);font-weight:700;font-size:1.7rem;
+  color:var(--flap);letter-spacing:.01em;
+  position:relative;
+}
+/* the mechanical seam line across the middle of every flap character —
+   this is the one deliberate "aesthetic risk" the whole page is built to
+   support, so it's the only place doing anything decorative. */
+.flap-value::after{
+  content:'';
+  position:absolute;
+  left:0;right:0;top:50%;
+  height:1px;
+  background:rgba(0,0,0,0.35);
+}
+.board-note{font-size:.7rem;color:var(--flap-dim);margin-top:.5rem;}
+
+/* ---------------- SECTION GRID ---------------- */
+.section-grid{display:grid;grid-template-columns:1.35fr .75fr;gap:1.5rem;align-items:start;}
+
+.panel{background:var(--card);border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;}
+.panel-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:1.15rem 1.35rem;border-bottom:1px solid var(--paper-line);
+}
+.panel-title{font-family:var(--display);font-weight:700;font-size:1.02rem;}
+.panel-title span{
+  display:block;font-family:var(--body);font-weight:400;font-size:.74rem;
+  color:var(--ink-faint);margin-top:.2rem;
+}
+.panel-count{
+  font-family:var(--mono);font-size:.72rem;font-weight:700;
+  color:var(--urgent);background:var(--urgent-wash);
+  padding:.28rem .6rem;border-radius:5px;
+}
+
+/* ---------------- FEED (Reddit/Facebook-style scroll) ---------------- */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: this container just scrolls the `reviews` array
+   the JS renders below. For infinite scroll against a real API, watch
+   this element's scrollTop/scrollHeight and fetch the next page of
+   complaints when the user nears the bottom (see renderReviews()). */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+.feed{
+  max-height:640px;overflow-y:auto;
+  padding:1.3rem;display:flex;flex-direction:column;gap:1rem;
+  scrollbar-width:thin;scrollbar-color:var(--paper-line) transparent;
+}
+.feed::-webkit-scrollbar{width:8px;}
+.feed::-webkit-scrollbar-thumb{background:var(--paper-line);border-radius:999px;}
+.feed::-webkit-scrollbar-track{background:transparent;}
+
+/* the ticket: a boarding-pass / claim-check shape, split by a perforated
+   line into "the complaint" and "the resolution" — a direct, literal
+   nod to the hospitality/travel world instead of a generic card. */
+.ticket{
+  position:relative;
+  border:1px solid var(--paper-line);
+  border-radius:10px;
+  background:var(--paper);
+  animation:rise .3s ease-out both;
+  transition:opacity .4s ease, transform .4s ease;
+}
+.ticket.leaving{opacity:0;transform:translateX(20px);}
+@keyframes rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+.ticket-flag{
+  position:absolute;top:14px;right:-1px;
+  font-family:var(--mono);font-size:.66rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;
+  padding:.3rem .7rem .3rem .85rem;
+  clip-path:polygon(14% 0,100% 0,100% 100%,14% 100%,0 50%);
+}
+.ticket-flag.urgent{background:var(--urgent);color:#fff;}
+.ticket-flag.important{background:var(--important);color:#fff;}
+.ticket-flag.normal{background:var(--normal);color:#fff;}
+
+.ticket-top{padding:1.2rem 4rem 1.1rem 1.2rem;}
+.ticket-head{display:flex;align-items:flex-start;gap:.7rem;margin-bottom:.75rem;}
+.avatar{
+  width:34px;height:34px;border-radius:6px;flex-shrink:0;
+  background:var(--ink);color:var(--paper);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-weight:700;font-size:.72rem;
+}
+.ticket-who{flex:1;}
+.ticket-who h4{font-size:.9rem;font-weight:600;}
+.ticket-who span{font-size:.76rem;color:var(--ink-faint);}
+.ticket-time{font-size:.7rem;color:var(--ink-faint);font-family:var(--mono);white-space:nowrap;}
+.ticket-text{font-size:.87rem;line-height:1.6;color:var(--ink-soft);}
+
+/* perforation: dashed rule with two notches cut into the card edges,
+   mimicking where a real ticket would tear. */
+.perforation{
+  position:relative;
+  border-top:1.5px dashed var(--paper-line);
+  margin:0 1.2rem;
+}
+.perforation::before,.perforation::after{
+  content:'';position:absolute;top:-7px;width:14px;height:14px;
+  border-radius:999px;background:var(--card);border:1px solid var(--paper-line);
+}
+.perforation::before{left:-1.2rem;}
+.perforation::after{right:-1.2rem;}
+
+.ticket-bottom{
+  padding:1rem 1.2rem 1.2rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;
+}
+.comp-tag{
+  font-family:var(--mono);font-size:.74rem;font-weight:600;
+  border:1.5px dashed var(--ink-faint);
+  border-radius:6px;padding:.4rem .7rem;
+  color:var(--ink-soft);
+}
+.comp-tag.approved{border-style:solid;border-color:var(--ok);color:var(--ok);background:var(--ok-wash);}
+.comp-tag.rejected{border-style:solid;border-color:var(--urgent);color:var(--urgent);background:var(--urgent-wash);text-decoration:line-through;}
+
+.ticket-actions{display:flex;gap:.55rem;}
+.btn{
+  border-radius:7px;padding:.5rem .95rem;font-size:.78rem;font-weight:600;
+  display:inline-flex;align-items:center;gap:.35rem;
+  transition:transform .1s ease, filter .15s ease;
+}
+.btn:active{transform:scale(.96);}
+.btn-approve{background:var(--ok);color:#fff;}
+.btn-approve:hover{filter:brightness(1.1);}
+.btn-decline{border:1.5px solid var(--paper-line);color:var(--ink-soft);}
+.btn-decline:hover{border-color:var(--urgent);color:var(--urgent);}
+
+.ticket-final{font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:.35rem;}
+.ticket-final.approved{color:var(--ok);}
+.ticket-final.rejected{color:var(--urgent);}
+
+.empty{text-align:center;padding:3rem 1.5rem;color:var(--ink-faint);}
+.empty svg{margin-bottom:1rem;color:var(--important);}
+.empty h4{font-family:var(--display);font-weight:700;font-size:1.05rem;color:var(--ink);margin-bottom:.35rem;}
+.empty p{font-size:.84rem;}
+
+/* ---------------- ACTIVITY TIMELINE ---------------- */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: `activity` is a local array acting as a live
+   log. Replace addActivity() calls with a subscription to your agent
+   event stream (WebSocket / SSE / polling GET /api/agent-activity) and
+   call renderTimeline() whenever a new event arrives. */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+.timeline{padding:1.3rem 1.4rem 1.4rem;}
+.tl-item{position:relative;padding-left:1.05rem;padding-bottom:1.2rem;border-left:1.5px solid var(--paper-line);}
+.tl-item:last-child{border-color:transparent;padding-bottom:0;}
+.tl-item::before{
+  content:'';position:absolute;left:-5px;top:2px;width:9px;height:9px;
+  border-radius:999px;background:var(--ink-faint);border:2px solid var(--card);
+}
+.tl-item.success::before{background:var(--ok);}
+.tl-item.warning::before{background:var(--important);}
+.tl-item.danger::before{background:var(--urgent);}
+.tl-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.25rem;gap:.5rem;}
+.tl-agent{font-size:.8rem;font-weight:600;}
+.tl-time{font-size:.68rem;color:var(--ink-faint);font-family:var(--mono);white-space:nowrap;}
+.tl-body{font-size:.8rem;color:var(--ink-soft);line-height:1.55;}
+
+/* ---------------- TOAST ---------------- */
+.toast{
+  position:fixed;bottom:1.75rem;right:1.75rem;
+  background:var(--ink);color:var(--paper);
+  padding:.85rem 1.2rem;border-radius:8px;
+  font-size:.83rem;font-weight:500;
+  box-shadow:0 18px 30px -10px rgba(0,0,0,.3);
+  transform:translateY(18px);opacity:0;
+  transition:transform .3s ease, opacity .3s ease;
+  z-index:1000;display:flex;align-items:center;gap:.55rem;
+}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast .dot{width:6px;height:6px;border-radius:999px;background:var(--flap);flex-shrink:0;}
+
+/* ---------------- RESPONSIVE ---------------- */
+@media (max-width:1180px){.section-grid{grid-template-columns:1fr;}}
+@media (max-width:860px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{flex-direction:row;align-items:center;padding:1rem 1.1rem;gap:1.1rem;}
+  .sidebar-foot,.nav-item span{display:none;}
+  .nav{flex-direction:row;flex:0;}
+  .main{padding:1.1rem;}
+  .board{flex-wrap:wrap;gap:1rem;}
+  .board-cell{flex:1 1 45%;border-left:none;padding-left:0;}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important;}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">H</div>
+      <div>
+        <div class="brand-name">Front Desk</div>
+        <div class="brand-sub">Manager console</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <div class="nav-item active">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Complaints</span>
+        <span class="nav-count" id="navCount">3</span>
+      </div>
+      <div class="nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h.01M15 9h.01M9 15c.7.7 1.8 1.2 3 1.2s2.3-.5 3-1.2"/></svg>
+        <span>AI Agents</span>
+      </div>
+      <div class="nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
+        <span>Schedule</span>
+      </div>
+      <div class="nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <span>Voice Agent</span>
+      </div>
+      <div class="nav-item">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!-- AI INTEGRATION POINT: swap this static credit line for your real
+         vendor name / build number, or drop it if not needed. -->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <!--------------->
+    <div class="sidebar-foot">
+      <strong>Manager mode</strong><br>
+      Agents powered by Voultur AI
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="header">
+      <div>
+        <h1>Guest complaints &amp; reviews</h1>
+        <p>Review the compensation the AI proposed before it reaches the guest</p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" aria-label="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="dot"></span>
+        </button>
+        <div class="profile">
+          <div class="profile-avatar">MG</div>
+          <div>
+            <div class="profile-name">Manager</div>
+            <div class="profile-role">Online</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIGNATURE ELEMENT: split-flap operations board -->
+    <div class="board">
+      <div class="board-cell">
+        <div class="board-label">Awaiting review</div>
+        <div class="flap-value" id="board-pending">3</div>
+        <div class="board-note">Needs your decision</div>
+      </div>
+      <div class="board-cell">
+        <div class="board-label">Approved today</div>
+        <div class="flap-value" id="board-approved">0</div>
+        <div class="board-note">Since this morning</div>
+      </div>
+      <div class="board-cell">
+        <div class="board-label">Satisfaction score</div>
+        <div class="flap-value">4.2</div>
+        <div class="board-note">Up 0.3 this month</div>
+      </div>
+      <div class="board-cell">
+        <div class="board-label">Compensation approved</div>
+        <div class="flap-value" id="board-comp">$0</div>
+        <div class="board-note">Running total, today</div>
+      </div>
+    </div>
+
+    <div class="section-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            Approval queue
+            <span>Scroll to work through pending complaints</span>
+          </div>
+          <span class="panel-count" id="panelCount">3</span>
+        </div>
+        <div class="feed" id="feed"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title">
+            Agent activity
+            <span>Live log</span>
+          </div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toastText"></span></div>
+
+<script>
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* ----------------------------------------------------------------------
+   MOCK DATA
+   ----------------------------------------------------------------------
+   AI INTEGRATION POINT: `reviews` should come from your complaints/review
+   pipeline instead of being hard-coded — e.g.:
+     const res = await fetch('/api/reviews?status=pending');
+     reviews = await res.json();
+   Each object is expected to carry the same shape used below: id, guest,
+   room, type ('urgent' | 'important' | 'normal'), label, text,
+   compensation (a short string), time, status.
+------------------------------------------------------------------------- */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+let reviews = [
+  {
+    id:1,
+    guest:"Marie Dupont",
+    room:"Room 204",
+    type:"urgent",
+    label:"Urgent",
+    text:"The air conditioning has been broken for two days. The guest is asking for $80 in compensation plus a 15% discount on her next stay.",
+    compensation:"$80 + 15% discount",
+    time:"15 min ago",
+    status:"pending"
+  },
+  {
+    id:2,
+    guest:"Jean Martin",
+    room:"Room 312",
+    type:"important",
+    label:"Important",
+    text:"Construction noise from the neighboring building between 10pm and 6am kept the guest up all night. He's requesting a $50 goodwill refund.",
+    compensation:"$50 refund",
+    time:"1 hour ago",
+    status:"pending"
+  },
+  {
+    id:3,
+    guest:"Sophie Bernard",
+    room:"Room 105",
+    type:"normal",
+    label:"Normal",
+    text:"Room service arrived 45 minutes late. The guest is understanding but would appreciate a complimentary welcome drink at the restaurant.",
+    compensation:"Complimentary cocktail ($12)",
+    time:"2 hours ago",
+    status:"pending"
+  }
+];
+
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: `activity` should be a live feed from your agent
+   orchestration layer (voice agent, retrieval agent, scheduling agent,
+   etc.) rather than a static array — see the timeline comment above. */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+let activity = [
+  {agent:"Voice Agent", time:"12 min ago", body:"Handled an inbound call — room 204 requested room service; the scheduling agent was notified.", type:""},
+  {agent:"Retrieval Agent", time:"28 min ago", body:"Found three new positive reviews on Booking.com.", type:"success"},
+  {agent:"Scheduling Agent", time:"45 min ago", body:"Detected a booking conflict — room 312 is double-booked on 07/15. Manager action required.", type:"warning"}
+];
+
+let approvedToday = 0;
+let totalCompensation = 0;
+
+function initials(name){
+  return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: this assumes compensation is expressed as a
+   "$N" string. If your AI service instead returns a structured amount
+   (e.g. { amount: 80, currency: "USD" }), read that field directly here
+   instead of parsing text. */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+function parseAmount(str){
+  const m = str.match(/\$(\d+)/);
+  return m ? parseInt(m[1],10) : 0;
+}
+
+function renderReviews(){
+  const feed = document.getElementById('feed');
+  const pendingCount = reviews.filter(r=>r.status==='pending').length;
+
+  document.getElementById('board-pending').textContent = pendingCount;
+  document.getElementById('panelCount').textContent = pendingCount;
+  document.getElementById('navCount').textContent = pendingCount;
+
+  if(reviews.length === 0){
+    feed.innerHTML = `
+      <div class="empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 5-5"/></svg>
+        <h4>Queue clear</h4>
+        <p>No complaints waiting on you right now.</p>
+      </div>`;
+    return;
+  }
+
+  feed.innerHTML = reviews.map(r => {
+    const isDone = r.status !== 'pending';
+    const tagClass = r.status === 'approved' ? 'approved' : r.status === 'rejected' ? 'rejected' : '';
+    const tagText = r.status === 'approved' ? `Approved · ${r.compensation}`
+                  : r.status === 'rejected' ? 'Declined'
+                  : r.compensation;
+
+    const actionsOrFinal = isDone
+      ? `<div class="ticket-final ${r.status}">
+           ${r.status === 'approved'
+              ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Guest notified'
+              : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg> Closed, no payout'}
+         </div>`
+      : `<div class="ticket-actions">
+           <button class="btn btn-decline" onclick="rejectReview(${r.id})">Decline</button>
+           <button class="btn btn-approve" onclick="approveReview(${r.id})">Approve</button>
+         </div>`;
+
+    return `
+      <article class="ticket ${isDone ? '' : ''}" id="ticket-${r.id}">
+        <span class="ticket-flag ${r.type}">${r.label}</span>
+        <div class="ticket-top">
+          <div class="ticket-head">
+            <div class="avatar">${initials(r.guest)}</div>
+            <div class="ticket-who">
+              <h4>${r.guest}</h4>
+              <span>${r.room}</span>
+            </div>
+            <div class="ticket-time">${r.time}</div>
+          </div>
+          <p class="ticket-text">${r.text}</p>
+        </div>
+        <div class="perforation"></div>
+        <div class="ticket-bottom">
+          <div class="comp-tag ${tagClass}">${tagText}</div>
+          ${actionsOrFinal}
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function renderTimeline(){
+  const tl = document.getElementById('timeline');
+  tl.innerHTML = activity.map(a => `
+    <div class="tl-item ${a.type}">
+      <div class="tl-head">
+        <span class="tl-agent">${a.agent}</span>
+        <span class="tl-time">${a.time}</span>
+      </div>
+      <div class="tl-body">${a.body}</div>
+    </div>
+  `).join('');
+}
+
+function addActivity(agent, type, body){
+  activity.unshift({agent, time:"Just now", body, type});
+  activity = activity.slice(0, 8);
+  renderTimeline();
+}
+
+function showToast(text){
+  const t = document.getElementById('toast');
+  document.getElementById('toastText').textContent = text;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=> t.classList.remove('show'), 3200);
+}
+
+function updateStats(){
+  document.getElementById('board-approved').textContent = approvedToday;
+  document.getElementById('board-comp').textContent = '$' + totalCompensation;
+}
+
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/* AI INTEGRATION POINT: both actions below only update local state. Wire
+   them to your backend, e.g.:
+     await fetch(`/api/reviews/${id}/approve`, { method: 'POST' });
+   and treat the local update as optimistic UI while that call is in
+   flight (roll back + toast an error if it fails). */
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+/*-----------*/
+function approveReview(id){
+  const r = reviews.find(x=>x.id===id);
+  if(!r) return;
+  r.status = 'approved';
+  approvedToday++;
+  totalCompensation += parseAmount(r.compensation);
+  updateStats();
+  addActivity('Manager', 'success', `Approved ${r.guest}'s complaint — ${r.compensation}.`);
+  renderReviews();
+  showToast(`Approved — ${r.guest} will be notified`);
+  const el = document.getElementById(`ticket-${id}`);
+  setTimeout(()=>{
+    if(el) el.classList.add('leaving');
+    setTimeout(()=>{
+      reviews = reviews.filter(x=>x.id!==id);
+      renderReviews();
+    }, 450);
+  }, 900);
+}
+
+function rejectReview(id){
+  const r = reviews.find(x=>x.id===id);
+  if(!r) return;
+  r.status = 'rejected';
+  addActivity('Manager', 'danger', `Declined ${r.guest}'s complaint.`);
+  renderReviews();
+  showToast(`Declined — ${r.guest}'s complaint has been closed`);
+  const el = document.getElementById(`ticket-${id}`);
+  setTimeout(()=>{
+    if(el) el.classList.add('leaving');
+    setTimeout(()=>{
+      reviews = reviews.filter(x=>x.id!==id);
+      renderReviews();
+    }, 450);
+  }, 900);
+}
+
+renderReviews();
+renderTimeline();
+updateStats();
+</script>
+</body>
+</html>
