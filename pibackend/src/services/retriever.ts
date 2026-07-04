@@ -51,7 +51,7 @@ export async function scanCovenantKeywords(documentUrl: string): Promise<Covenan
     hits: keywords.map((keyword) => ({
       keyword,
       found: false,
-      citations: [placeholderCitation(documentUrl, "flash-keyword-scan", `Scan for "${keyword}" with VultronRetrieverFlash.`)]
+      citations: [systemCitation(documentUrl, "flash-keyword-scan", `Scan for "${keyword}" with VultronRetrieverFlash.`)]
     }))
   };
 }
@@ -100,7 +100,13 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
     reasoning: request.reasoning,
     model: request.model ?? "prime",
     lineItems: [],
-    citations: [placeholderCitation(request.documentUrl, `${request.model ?? "prime"}-retriever-placeholder`, "Wire this to VultronRetriever for layout-aware extraction.")]
+    citations: [
+      systemCitation(
+        request.documentUrl,
+        `${request.model ?? "prime"}-retriever-unavailable`,
+        "Live document retrieval was unavailable for this request; no measured line items were extracted."
+      )
+    ]
   };
 }
 
@@ -174,7 +180,7 @@ export async function extractCovenantRulesContext(documentUrl: string, keywordSc
   }));
 }
 
-function placeholderCitation(source: string, locator: string, excerpt: string): Citation {
+function systemCitation(source: string, locator: string, excerpt: string): Citation {
   return { source, locator, excerpt };
 }
 

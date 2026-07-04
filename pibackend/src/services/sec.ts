@@ -40,7 +40,7 @@ export async function findLatestFiling(ticker: string, filingType: "10-Q" | "10-
     ticker: normalizedTicker,
     cik: company?.cik ?? null,
     filingType: (recentFiling?.form === "10-K" || recentFiling?.form === "10-Q" ? recentFiling.form : filingType) as "10-Q" | "10-K",
-    accessionNumber: recentFiling?.accessionNumber ?? "placeholder",
+    accessionNumber: recentFiling?.accessionNumber ?? "unavailable",
     filedAt: recentFiling?.filingDate ?? new Date().toISOString(),
     url:
       recentFiling?.primaryDocumentUrl ??

@@ -24,7 +24,7 @@ const app = new Elysia()
     product: "vultr-audit",
     model_provider: "vultr",
     live_model: llmClient.live,
-    mode: llmClient.live ? "vultr-live" : "deterministic-placeholder"
+    mode: llmClient.live ? "vultr-live" : "deterministic-local"
   }))
   .use(auditRoutes)
   .use(secRoutes)

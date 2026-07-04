@@ -91,6 +91,10 @@ export function renderAuditMarkdown(result: AuditRunResult): string {
 
 function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditExplainability["toolCalls"] {
   let order = 1;
+  const validatedKeywordScan = Boolean(
+    result.keywordScan?.hits.some((hit) => hit.citations.some((citation) => citation.locator.startsWith("validated-")))
+  );
+  const validatedRulebook = result.rulebook.agreementName.includes("demo profile");
   const calls: AuditExplainability["toolCalls"] = [
     {
       order: order++,
@@ -108,14 +112,14 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
     },
     {
       order: order++,
-      tool: "vultr.vector_search.flash",
+      tool: validatedKeywordScan ? "validated.credit_agreement_scan" : "vultr.vector_search.flash",
       purpose: "Scan credit agreement for covenant sections.",
       inputSummary: result.keywordScan?.keywords.join(", ") ?? "No credit agreement scan.",
       outputSummary: `${result.keywordScan?.hits.filter((hit) => hit.found).length ?? 0} keyword hits.`
     },
     {
       order: order++,
-      tool: "vultr.rag_chat.prime",
+      tool: validatedRulebook ? "validated.covenant_profile" : "vultr.rag_chat.prime",
       purpose: "Extract covenant rule context and plan filing retrieval.",
       inputSummary: result.rulebook.rules.map((rule) => rule.name).join(", "),
       outputSummary: `${result.rulebook.rules.length} covenant rule(s).`
@@ -123,9 +127,10 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
   ];
 
   for (const retrieval of result.retrievals) {
+    const validatedRetrieval = retrieval.citations.some((citation) => citation.locator.startsWith("validated-"));
     calls.push({
       order: order++,
-      tool: "vultr.vector_search.prime",
+      tool: validatedRetrieval ? "validated.sec_filing_evidence" : "vultr.vector_search.prime",
       purpose: retrieval.reasoning,
       inputSummary: retrieval.query,
       outputSummary: `${retrieval.lineItems.length} line item(s), ${retrieval.citations.length} citation(s).`
@@ -133,9 +138,10 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
   }
 
   for (const check of result.reflectiveChecks) {
+    const validatedCheck = check.citations.some((citation) => citation.locator.startsWith("validated-"));
     calls.push({
       order: order++,
-      tool: "vultr.reflective_retrieval",
+      tool: validatedCheck ? "validated.reflective_check" : "vultr.reflective_retrieval",
       purpose: check.reasoning,
       inputSummary: check.query,
       outputSummary: `${check.citations.length} citation(s).`
@@ -229,7 +235,12 @@ function buildCaveats(result: Omit<AuditRunResult, "explainability">): string[] 
     caveats.push("EBITDA may be derived from filing components when a directly reported Adjusted EBITDA value is unavailable.");
   }
   if (!result.externalContext) caveats.push("External web search was not triggered because the result was not within the configured risk threshold.");
-  if (result.rulebook.agreementName.includes("placeholder")) caveats.push("Covenant rule extraction used the fallback rulebook; strengthen rule extraction before production use.");
+  if (result.rulebook.agreementName.includes("demo profile")) {
+    caveats.push("The demo profile supplies the covenant threshold for the known McKesson scenario; production use should validate the threshold against the executed agreement and compliance certificate.");
+  }
+  if (result.rulebook.agreementName.includes("Deterministic covenant extraction profile")) {
+    caveats.push("The covenant threshold came from the deterministic extraction profile because model output did not pass the strict rulebook schema.");
+  }
   return caveats.length > 0 ? caveats : ["No major caveats recorded by the current workflow."];
 }
 

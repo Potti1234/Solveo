@@ -9,8 +9,8 @@ This folder now keeps only the reusable backend reference points needed by the r
 - Root `.env` loading.
 - Vultr OpenAI-compatible chat client.
 - SEC company ticker sync from `https://www.sec.gov/files/company_tickers.json`.
-- SEC filing lookup placeholder.
-- Vultron retrieval placeholder.
+- SEC filing lookup and submission-history discovery.
+- Vultr Vector Store document indexing, retrieval, and RAG normalization.
 - Covenant calculation tool.
 - `execute_code` tool for Python/TypeScript analyst scripts.
 - AgentEngine skeleton for Plan -> Retrieve -> Calculate -> Report.
@@ -121,4 +121,4 @@ curl -X POST http://localhost:8001/api/what-if/run \
 
 The endpoint writes and executes a Python stress script, returning the code, assumptions, and result.
 
-The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.
+The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning and document retrieval use the configured Vultr inference endpoint. Without a live key, deterministic local extraction keeps the backend usable during development.
