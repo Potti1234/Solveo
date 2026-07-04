@@ -1,7 +1,11 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
+import { createSchema } from "./db/client";
 import { auditRoutes } from "./routes/audits";
+import { secRoutes } from "./routes/sec";
 import { llmClient } from "./services/vultr";
+
+createSchema();
 
 const port = Number(process.env.PORT ?? 8001);
 
@@ -21,6 +25,7 @@ const app = new Elysia()
     mode: llmClient.live ? "vultr-live" : "deterministic-placeholder"
   }))
   .use(auditRoutes)
+  .use(secRoutes)
   .listen(port);
 
 console.log(`Vultr-Audit backend listening on http://localhost:${app.server?.port ?? port}`);

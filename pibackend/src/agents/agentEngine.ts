@@ -1,5 +1,5 @@
 import type { AuditRequest, AuditRunResult, AuditThought, ComplianceMemo, CovenantRulebook, FilingPlan } from "../types";
-import { findLatestFiling } from "../services/sec";
+import { findLatestFiling, resolveCompanyTicker } from "../services/sec";
 import { retrieveFinancialContext } from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { calculateCovenants } from "../tools/calculator";
@@ -8,8 +8,14 @@ export class AgentEngine {
   private readonly thoughts: AuditThought[] = [];
 
   async run(request: AuditRequest): Promise<AuditRunResult> {
+    this.think("sec_lookup", "Resolving ticker against SEC company ticker index.", { ticker: request.ticker });
+    const company = await resolveCompanyTicker(request.ticker);
+    this.think("sec_lookup", company ? "Resolved SEC company metadata." : "Ticker not found in SEC cache.", {
+      company
+    });
+
     const rulebook = request.rulebook ?? (await this.extractRulebook(request));
-    const plan = await this.planFilingRetrieval(request.ticker, rulebook);
+    const plan = await this.planFilingRetrieval(company?.ticker ?? request.ticker, rulebook, company);
     const filing = await findLatestFiling(request.ticker, plan.filingType);
 
     const retrievals = [];
@@ -29,7 +35,7 @@ export class AgentEngine {
 
     this.think("reporting", "Preparing audit-ready compliance memo with citations.");
     const memo: ComplianceMemo = {
-      ticker: request.ticker.toUpperCase(),
+      ticker: company?.ticker ?? request.ticker.toUpperCase(),
       status: calculations.some((calculation) => !calculation.compliant) ? "breach" : "needs_review",
       summary:
         "Placeholder memo generated from the cleaned backend skeleton. Wire retriever line items to move this from needs_review to compliant/breach.",
@@ -59,9 +65,15 @@ export class AgentEngine {
     );
   }
 
-  private async planFilingRetrieval(ticker: string, rulebook: CovenantRulebook): Promise<FilingPlan> {
+  private async planFilingRetrieval(
+    ticker: string,
+    rulebook: CovenantRulebook,
+    company: Awaited<ReturnType<typeof resolveCompanyTicker>>
+  ): Promise<FilingPlan> {
     this.think("planning", "Planning SEC filing retrieval based on extracted covenant rules.", {
       ticker,
+      cik: company?.cik,
+      companyName: company?.title,
       ruleCount: rulebook.rules.length
     });
 
@@ -72,9 +84,9 @@ export class AgentEngine {
           content:
             "Plan which SEC filing and table queries are needed for covenant testing. Return strict JSON with ticker, filingType, targetPeriod, requiredLineItems, retrievalQueries, rationale."
         },
-        { role: "user", content: JSON.stringify({ ticker, rulebook }) }
+        { role: "user", content: JSON.stringify({ ticker, company, rulebook }) }
       ],
-      () => fallbackPlan(ticker, rulebook),
+      () => fallbackPlan(ticker, rulebook, company),
       isFilingPlan
     );
   }
@@ -110,9 +122,15 @@ function fallbackRulebook(request: AuditRequest): CovenantRulebook {
   };
 }
 
-function fallbackPlan(ticker: string, rulebook: CovenantRulebook): FilingPlan {
+function fallbackPlan(
+  ticker: string,
+  rulebook: CovenantRulebook,
+  company: Awaited<ReturnType<typeof resolveCompanyTicker>>
+): FilingPlan {
   return {
     ticker: ticker.toUpperCase(),
+    cik: company?.cik,
+    companyName: company?.title,
     filingType: "10-Q",
     targetPeriod: "latest",
     requiredLineItems: ["Total Debt", "EBITDA"],

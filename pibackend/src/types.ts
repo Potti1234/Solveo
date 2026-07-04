@@ -24,6 +24,8 @@ export type CovenantRulebook = {
 
 export type FilingPlan = {
   ticker: string;
+  cik?: number;
+  companyName?: string;
   filingType: "10-Q" | "10-K";
   targetPeriod: string;
   requiredLineItems: string[];
@@ -65,7 +67,7 @@ export type ComplianceMemo = {
 };
 
 export type AuditThought = {
-  phase: "rule_extraction" | "planning" | "retrieval" | "calculation" | "reporting";
+  phase: "sec_lookup" | "rule_extraction" | "planning" | "retrieval" | "calculation" | "reporting";
   message: string;
   payload?: Record<string, unknown>;
 };
@@ -74,6 +76,13 @@ export type AuditRequest = {
   ticker: string;
   creditAgreementUrl?: string;
   rulebook?: CovenantRulebook;
+};
+
+export type SecCompany = {
+  cik: number;
+  cikPadded: string;
+  ticker: string;
+  title: string;
 };
 
 export type AuditRunResult = {
