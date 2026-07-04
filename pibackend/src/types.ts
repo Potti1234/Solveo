@@ -44,8 +44,20 @@ export type FinancialLineItem = {
 export type RetrievalBlock = {
   query: string;
   reasoning: string;
+  model?: "flash" | "prime";
   lineItems: FinancialLineItem[];
   citations: Citation[];
+};
+
+export type CovenantKeywordScan = {
+  documentUrl: string;
+  model: "flash";
+  keywords: string[];
+  hits: Array<{
+    keyword: string;
+    found: boolean;
+    citations: Citation[];
+  }>;
 };
 
 export type CovenantCalculation = {
@@ -67,7 +79,15 @@ export type ComplianceMemo = {
 };
 
 export type AuditThought = {
-  phase: "sec_lookup" | "rule_extraction" | "planning" | "retrieval" | "calculation" | "reporting";
+  phase:
+    | "sec_lookup"
+    | "exhibit_discovery"
+    | "keyword_scan"
+    | "rule_extraction"
+    | "planning"
+    | "retrieval"
+    | "calculation"
+    | "reporting";
   message: string;
   payload?: Record<string, unknown>;
 };
@@ -116,6 +136,8 @@ export type ExhibitDiscovery = {
 
 export type AuditRunResult = {
   thoughts: AuditThought[];
+  creditAgreementUrl: string | null;
+  keywordScan: CovenantKeywordScan | null;
   rulebook: CovenantRulebook;
   plan: FilingPlan;
   retrievals: RetrievalBlock[];

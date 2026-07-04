@@ -47,4 +47,14 @@ The SEC ticker cache is stored in `pibackend/vultr_audit.db` unless `DATABASE_PA
 
 SEC requests include `SEC_USER_AGENT`. Set it to a real project/contact string before production use.
 
+Agent covenant discovery flow:
+
+1. Resolve ticker to SEC CIK/company metadata.
+2. Fetch submission history from `https://data.sec.gov/submissions/CIK##########.json`.
+3. Inspect recent `10-K` and `8-K` filing directories for Exhibit 10.1 candidates.
+4. Scan the selected agreement with VultronRetrieverFlash keywords:
+   `Financial Covenants`, `Consolidated Leverage Ratio`, `Fixed Charge Coverage Ratio`,
+   `Negative Covenants`, `Compliance Certificate`, and `Form of Compliance Certificate`.
+5. Pass the relevant context to VultronRetrieverPrime-style rule extraction.
+
 The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.

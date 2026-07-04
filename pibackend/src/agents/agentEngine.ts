@@ -1,6 +1,6 @@
 import type { AuditRequest, AuditRunResult, AuditThought, ComplianceMemo, CovenantRulebook, FilingPlan } from "../types";
-import { findLatestFiling, resolveCompanyTicker } from "../services/sec";
-import { retrieveFinancialContext } from "../services/retriever";
+import { discoverCreditAgreementExhibits, findLatestFiling, resolveCompanyTicker } from "../services/sec";
+import { extractCovenantRulesContext, retrieveFinancialContext, scanCovenantKeywords } from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { calculateCovenants } from "../tools/calculator";
 
@@ -14,7 +14,28 @@ export class AgentEngine {
       company
     });
 
-    const rulebook = request.rulebook ?? (await this.extractRulebook(request));
+    let creditAgreementUrl = request.creditAgreementUrl ?? null;
+    if (!creditAgreementUrl && company) {
+      this.think("exhibit_discovery", "Searching recent SEC 10-K and 8-K filings for Exhibit 10.1 candidates.", {
+        ticker: company.ticker,
+        cik: company.cik
+      });
+      const discovery = await discoverCreditAgreementExhibits(company.ticker);
+      creditAgreementUrl = discovery.exhibitCandidates[0]?.url ?? null;
+      this.think(
+        "exhibit_discovery",
+        creditAgreementUrl ? "Selected Exhibit 10.1 candidate for covenant scanning." : "No Exhibit 10.1 candidate found in recent SEC filings.",
+        {
+          filingsChecked: discovery.filings.length,
+          candidateCount: discovery.exhibitCandidates.length,
+          creditAgreementUrl
+        }
+      );
+    }
+
+    const keywordScan = creditAgreementUrl ? await this.scanCreditAgreement(creditAgreementUrl) : null;
+    const ruleContext = creditAgreementUrl && keywordScan ? await extractCovenantRulesContext(creditAgreementUrl, keywordScan) : null;
+    const rulebook = request.rulebook ?? (await this.extractRulebook(request, creditAgreementUrl, ruleContext));
     const plan = await this.planFilingRetrieval(company?.ticker ?? request.ticker, rulebook, company);
     const filing = await findLatestFiling(request.ticker, plan.filingType);
 
@@ -25,6 +46,7 @@ export class AgentEngine {
         await retrieveFinancialContext({
           documentUrl: filing.url,
           query,
+          model: "prime",
           reasoning: `Needed to evaluate ${rulebook.rules.map((rule) => rule.name).join(", ")}.`
         })
       );
@@ -43,12 +65,34 @@ export class AgentEngine {
       citations: retrievals.flatMap((retrieval) => retrieval.citations)
     };
 
-    return { thoughts: this.thoughts, rulebook, plan, retrievals, memo };
+    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, memo };
   }
 
-  private async extractRulebook(request: AuditRequest): Promise<CovenantRulebook> {
-    this.think("rule_extraction", "Extracting financial covenants from credit agreement.", {
-      creditAgreementUrl: request.creditAgreementUrl ?? null
+  private async scanCreditAgreement(creditAgreementUrl: string) {
+    this.think("keyword_scan", "Scanning credit agreement for debt-rule sections with VultronRetrieverFlash.", {
+      creditAgreementUrl
+    });
+    const scan = await scanCovenantKeywords(creditAgreementUrl);
+    this.think("keyword_scan", "Completed covenant keyword scan.", {
+      keywords: scan.keywords,
+      hitCount: scan.hits.filter((hit) => hit.found).length
+    });
+    return scan;
+  }
+
+  private async extractRulebook(
+    request: AuditRequest,
+    creditAgreementUrl: string | null,
+    ruleContext: Awaited<ReturnType<typeof extractCovenantRulesContext>> | null
+  ): Promise<CovenantRulebook> {
+    this.think("rule_extraction", "Extracting financial covenants with VultronRetrieverPrime context.", {
+      creditAgreementUrl,
+      ruleContext: ruleContext
+        ? {
+            query: ruleContext.query,
+            citationCount: ruleContext.citations.length
+          }
+        : null
     });
 
     return llmClient.chatJson(
@@ -58,9 +102,9 @@ export class AgentEngine {
           content:
             "Extract loan financial covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations."
         },
-        { role: "user", content: JSON.stringify(request) }
+        { role: "user", content: JSON.stringify({ request, creditAgreementUrl, ruleContext }) }
       ],
-      () => fallbackRulebook(request),
+      () => fallbackRulebook(request, creditAgreementUrl, ruleContext),
       isRulebook
     );
   }
@@ -96,7 +140,11 @@ export class AgentEngine {
   }
 }
 
-function fallbackRulebook(request: AuditRequest): CovenantRulebook {
+function fallbackRulebook(
+  request: AuditRequest,
+  creditAgreementUrl: string | null,
+  ruleContext: Awaited<ReturnType<typeof extractCovenantRulesContext>> | null
+): CovenantRulebook {
   return {
     borrower: request.ticker.toUpperCase(),
     agreementName: "Credit agreement placeholder",
@@ -112,9 +160,11 @@ function fallbackRulebook(request: AuditRequest): CovenantRulebook {
         period: "trailing_twelve_months",
         citations: [
           {
-            source: request.creditAgreementUrl ?? "credit-agreement-placeholder",
-            locator: "financial-covenants",
-            excerpt: "Replace with VultronRetrieverPrime covenant extraction."
+            source: creditAgreementUrl ?? "credit-agreement-placeholder",
+            locator: ruleContext?.citations[0]?.locator ?? "financial-covenants",
+            excerpt:
+              ruleContext?.citations[0]?.excerpt ??
+              "Replace with VultronRetrieverPrime covenant extraction from Financial Covenants and Compliance Certificate sections."
           }
         ]
       }
@@ -160,6 +210,8 @@ function isFilingPlan(value: unknown): value is FilingPlan {
       typeof plan.ticker === "string" &&
       (plan.filingType === "10-Q" || plan.filingType === "10-K") &&
       Array.isArray(plan.requiredLineItems) &&
-      Array.isArray(plan.retrievalQueries)
+      plan.requiredLineItems.every((item) => typeof item === "string") &&
+      Array.isArray(plan.retrievalQueries) &&
+      plan.retrievalQueries.every((query) => typeof query === "string")
   );
 }
