@@ -2,11 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Play, RefreshCcw, Volume2 } from "lucide-react";
+import { ArrowLeft, Bot, Loader2, Play, RefreshCcw, ShieldAlert, UserRound, Volume2 } from "lucide-react";
 import { API_URL, apiFetch, assetUrl, type CaseEvent, type CaseRecord, type InboxMessage } from "@/lib/api";
 import { CaseTrace } from "@/components/CaseTrace";
 import { DecisionCard } from "@/components/DecisionCard";
 import { ChannelIcon } from "@/components/ChannelIcon";
+import { AgentRuntimeBadge } from "@/components/AgentRuntimeBadge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function CasePage({ params }: { params: { id: string } }) {
   const [message, setMessage] = useState<InboxMessage | null>(null);
@@ -91,106 +96,186 @@ export default function CasePage({ params }: { params: { id: string } }) {
   }
 
   if (booting && !message) {
-    return <div className="rounded-lg border border-line bg-white p-5 text-sm text-muted">Opening case...</div>;
+    return <CaseSkeleton />;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-        <Link href="/inbox" className="icon-button">
-          <ArrowLeft size={16} />
-          Inbox
-        </Link>
+    <div className="grid gap-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Button asChild variant="secondary" size="icon" aria-label="Back to inbox">
+            <Link href="/inbox">
+              <ArrowLeft size={16} />
+            </Link>
+          </Button>
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge variant={caseRecord?.status === "complete" ? "teal" : caseRecord?.status === "failed" ? "coral" : "amber"}>
+                {caseRecord?.status ?? "starting"}
+              </Badge>
+              {caseRecord?.escalate ? <Badge variant="violet">Manager review</Badge> : <Badge variant="default">AI handling</Badge>}
+              <AgentRuntimeBadge compact />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{message?.subject ?? "Case detail"}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {message ? `${message.guest_name}${message.room ? ` / Room ${message.room}` : ""} / ${message.sender}` : "Loading case context"}
+            </p>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           {voiceEnabled && caseRecord?.response_draft ? (
-            <button className="icon-button" onClick={speak} disabled={speaking}>
+            <Button variant="secondary" onClick={speak} disabled={speaking}>
               {speaking ? <Loader2 className="animate-spin" size={16} /> : <Volume2 size={16} />}
-              Read
-            </button>
+              Read draft
+            </Button>
           ) : null}
-          <button className="icon-button" onClick={rerun}>
+          <Button variant="secondary" onClick={rerun}>
             <RefreshCcw size={16} />
-            Rerun
-          </button>
+            Rerun investigation
+          </Button>
+          <Button variant="violet">
+            <UserRound size={16} />
+            Take over chat
+          </Button>
         </div>
-      </div>
+      </header>
 
       {message ? (
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-5">
-            <div className="rounded-lg border border-line bg-white p-5 shadow-crisp">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-wash text-ink">
-                  <ChannelIcon channel={message.channel} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl font-bold tracking-normal text-ink">{message.subject}</h1>
-                    <span className="status-pill bg-white text-muted">{caseRecord?.status ?? "starting"}</span>
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="grid gap-5">
+            <Card className="overflow-hidden">
+              <div className="border-b border-border bg-muted/45 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-card text-foreground">
+                      <ChannelIcon channel={message.channel} />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="text-lg font-semibold leading-tight text-foreground">Guest conversation</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">{formatChannel(message.channel)} intake from {message.guest_name}</p>
+                    </div>
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-ink">{message.body}</p>
-                  <div className="mt-4 flex flex-wrap gap-3 text-xs font-bold text-muted">
-                    <span>{message.guest_name}</span>
-                    {message.room ? <span>Room {message.room}</span> : null}
-                    <span>{message.sender}</span>
-                  </div>
+                  {!caseId ? (
+                    <Button onClick={startRun}>
+                      <Play size={16} />
+                      Start investigation
+                    </Button>
+                  ) : null}
                 </div>
               </div>
-              {!caseId ? (
-                <button className="icon-button primary mt-4" onClick={startRun}>
-                  <Play size={16} />
-                  Run
-                </button>
-              ) : null}
-            </div>
+              <div className="p-4">
+                <p className="max-w-4xl text-sm leading-6 text-foreground">{message.body}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Badge variant="default">{message.sender}</Badge>
+                  {message.room ? <Badge variant="default">Room {message.room}</Badge> : null}
+                  <Badge variant="default">{formatChannel(message.channel)}</Badge>
+                </div>
+              </div>
+            </Card>
 
             {caseRecord ? <DecisionCard record={caseRecord} /> : null}
 
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-bold tracking-normal text-ink">Agent Trace</h2>
+            <section>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Agent activity timeline</h2>
+                  <p className="text-sm text-muted-foreground">Pi agent plans, tool results, evidence, decisions, and actions in audit order.</p>
+                </div>
                 {caseRecord?.status === "running" || !caseRecord ? (
-                  <span className="status-pill border-teal/30 bg-teal/5 text-teal">
+                  <Badge variant="teal">
                     <Loader2 className="animate-spin" size={13} />
                     Live
-                  </span>
+                  </Badge>
                 ) : null}
               </div>
               <CaseTrace events={events} />
-            </div>
+            </section>
           </div>
 
-          <aside className="space-y-4">
-            <section className="rounded-lg border border-line bg-white p-4 shadow-crisp">
-              <h2 className="text-sm font-bold uppercase tracking-normal text-muted">Evidence</h2>
-              <div className="mt-3 grid gap-3">
+          <aside className="grid content-start gap-4">
+            <AgentRuntimeBadge />
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Manager controls</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                <Button variant="violet" className="justify-start">
+                  <UserRound size={16} />
+                  Take over chat
+                </Button>
+                <Button variant="secondary" className="justify-start">
+                  <ShieldAlert size={16} />
+                  Escalate case
+                </Button>
+                <Button variant="secondary" className="justify-start" onClick={rerun}>
+                  <RefreshCcw size={16} />
+                  Rerun investigation
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Evidence</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3">
                 {message.attachments.length ? (
                   message.attachments.map((attachment) => (
-                    <figure key={attachment.filename} className="overflow-hidden rounded-lg border border-line bg-wash">
-                      <img className="h-48 w-full object-cover" src={assetUrl(attachment.path)} alt={attachment.filename} />
-                      <figcaption className="px-3 py-2 text-xs font-semibold text-muted">{attachment.filename}</figcaption>
+                    <figure key={attachment.filename} className="overflow-hidden rounded-lg border border-border bg-muted">
+                      <img className="h-48 w-full object-cover" src={assetUrl(attachment.path)} alt={`Evidence attachment ${attachment.filename}`} />
+                      <figcaption className="border-t border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground">{attachment.filename}</figcaption>
                     </figure>
                   ))
                 ) : (
-                  <p className="text-sm text-muted">No attachments</p>
+                  <p className="text-sm leading-6 text-muted-foreground">No attachments were included with this message.</p>
                 )}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
+
             {caseRecord?.actions?.length ? (
-              <section className="rounded-lg border border-line bg-white p-4 shadow-crisp">
-                <h2 className="text-sm font-bold uppercase tracking-normal text-muted">Actions</h2>
-                <ul className="mt-3 grid gap-2">
-                  {caseRecord.actions.map((action) => (
-                    <li key={action} className="rounded-lg bg-wash px-3 py-2 text-sm text-ink">
-                      {action}
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Follow-up work</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="grid gap-2">
+                    {caseRecord.actions.map((action) => (
+                      <li key={action} className="rounded-md bg-muted px-3 py-2 text-sm leading-5 text-foreground">
+                        {action}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
             ) : null}
           </aside>
         </section>
       ) : null}
     </div>
   );
+}
+
+function CaseSkeleton() {
+  return (
+    <div className="grid gap-5">
+      <div className="flex items-start gap-3">
+        <Skeleton className="h-9 w-9" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="h-4 w-1/3" />
+        </div>
+      </div>
+      <Card className="p-4">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="mt-3 h-4 w-5/6" />
+      </Card>
+    </div>
+  );
+}
+
+function formatChannel(channel: string) {
+  return channel.replace("_", " ");
 }

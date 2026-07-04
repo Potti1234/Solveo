@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Concierge Court",
-  description: "Agentic hotel guest-relations demo"
+  description: "Hotel AI operations dashboard for guest conversations, decisions, and manager review"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
