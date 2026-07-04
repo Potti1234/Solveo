@@ -410,8 +410,52 @@ button:focus-visible, .nav-item:focus-visible{
 .toast.show{transform:translateY(0);opacity:1;}
 .toast .dot{width:6px;height:6px;border-radius:999px;background:var(--flap);flex-shrink:0;}
 
+/* ---------------- SETTINGS: POLICY REFERENCE PANEL ---------------- */
+/* The page "widens" here: instead of the two-column section-grid, the
+   seven policy documents lay out as a single full-width column of
+   accordions so each one has room to breathe. */
+.policies-panel{width:100%;}
+.btn-back{
+  font-family:var(--mono);font-size:.78rem;font-weight:600;color:var(--ink-soft);
+  display:inline-flex;align-items:center;gap:.4rem;margin-bottom:1.4rem;
+}
+.btn-back:hover{color:var(--ink);}
+.policies-head{margin-bottom:1.75rem;max-width:64ch;}
+.policies-head h2{font-family:var(--display);font-weight:700;font-size:1.5rem;letter-spacing:-.01em;margin-bottom:.5rem;}
+.policies-head p{color:var(--ink-soft);font-size:.9rem;line-height:1.6;}
+
+.policy-grid{display:flex;flex-direction:column;gap:.9rem;}
+.policy-doc{background:var(--card);border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;}
+.policy-doc summary{
+  list-style:none;cursor:pointer;
+  padding:1.1rem 1.3rem;
+  display:flex;align-items:center;gap:1rem;
+}
+.policy-doc summary::-webkit-details-marker{display:none;}
+.policy-doc-id{
+  font-family:var(--mono);font-size:.68rem;font-weight:700;
+  color:var(--important);background:var(--important-wash);
+  padding:.3rem .6rem;border-radius:5px;white-space:nowrap;
+}
+.policy-doc-title{flex:1;}
+.policy-doc-title h3{font-family:var(--display);font-weight:700;font-size:.95rem;}
+.policy-doc-title span{font-size:.76rem;color:var(--ink-faint);}
+.policy-doc-chevron{color:var(--ink-faint);transition:transform .2s ease;flex-shrink:0;}
+.policy-doc[open] .policy-doc-chevron{transform:rotate(180deg);}
+.policy-doc-body{padding:0 1.3rem 1.3rem;border-top:1px solid var(--paper-line);}
+.policy-doc-body p{font-size:.85rem;color:var(--ink-soft);line-height:1.6;margin:1rem 0;}
+.policy-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:1rem;}
+.policy-table th{
+  text-align:left;font-family:var(--mono);font-size:.66rem;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--ink-faint);padding:.5rem .6rem;
+  border-bottom:1px solid var(--paper-line);
+}
+.policy-table td{padding:.55rem .6rem;border-bottom:1px solid var(--paper-line);color:var(--ink-soft);vertical-align:top;}
+.policy-table tr:last-child td{border-bottom:none;}
+
 /* ---------------- RESPONSIVE ---------------- */
 @media (max-width:1180px){.section-grid{grid-template-columns:1fr;}}
+@media (max-width:700px){.policy-table{font-size:.74rem;}}
 @media (max-width:860px){
   .layout{grid-template-columns:1fr;}
   .sidebar{flex-direction:row;align-items:center;padding:1rem 1.1rem;gap:1.1rem;}
@@ -437,31 +481,10 @@ button:focus-visible, .nav-item:focus-visible{
     </div>
 
     <nav class="nav">
-      <div class="nav-item active">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-        <span>Dashboard</span>
-      </div>
-      <div class="nav-item">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-        <span>Complaints</span>
-        <span class="nav-count" id="navCount">3</span>
-      </div>
-      <div class="nav-item">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h.01M15 9h.01M9 15c.7.7 1.8 1.2 3 1.2s2.3-.5 3-1.2"/></svg>
-        <span>AI Agents</span>
-      </div>
-      <div class="nav-item">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 3v3M16 3v3"/></svg>
-        <span>Schedule</span>
-      </div>
-      <div class="nav-item">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-        <span>Voice Agent</span>
-      </div>
-      <div class="nav-item">
+      <button class="nav-item active" id="navSettings" onclick="togglePolicies()">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
         <span>Settings</span>
-      </div>
+      </button>
     </nav>
 
     <!--------------->
@@ -495,8 +518,8 @@ button:focus-visible, .nav-item:focus-visible{
   <main class="main">
     <div class="header">
       <div>
-        <h1>Guest complaints &amp; reviews</h1>
-        <p>Review the compensation the AI proposed before it reaches the guest</p>
+        <h1 id="mainTitle">Guest complaints &amp; reviews</h1>
+        <p id="mainSubtitle">Review the compensation the AI proposed before it reaches the guest</p>
       </div>
       <div class="header-actions">
         <button class="icon-btn" aria-label="Notifications">
@@ -559,6 +582,179 @@ button:focus-visible, .nav-item:focus-visible{
         <div class="timeline" id="timeline"></div>
       </section>
     </div>
+
+    <!-- SETTINGS PANEL: the seven Aurelia policy documents, condensed into
+         an in-app reference so a manager can check what a guest is entitled
+         to ask for before approving or declining a case. Hidden by default;
+         togglePolicies() below shows/hides it and hides the dashboard. -->
+    <section class="policies-panel" id="policiesPanel" hidden>
+      <button class="btn-back" onclick="togglePolicies()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        Back to dashboard
+      </button>
+      <div class="policies-head">
+        <h2>Policy reference</h2>
+        <p>Seven controlled Aurelia Grand Hotel Group documents, condensed for quick reference during a complaint or compensation decision.</p>
+      </div>
+
+      <div class="policy-grid">
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-BGE-007</span>
+            <div class="policy-doc-title">
+              <h3>Brand Standards &amp; Guest Experience Manual</h3>
+              <span>Tone, ownership, and service language standards · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>Aurelia service is calm, precise, personal, and accountable — the hotel owns what goes wrong rather than asking the guest to manage departments. Responses should name the issue, make one clear promise, and avoid over-apologizing without action.</p>
+            <table class="policy-table">
+              <tr><th>Instead of</th><th>Use</th></tr>
+              <tr><td>“We apologize for any inconvenience.”</td><td>“I am sorry the air-conditioning issue disrupted your rest.”</td></tr>
+              <tr><td>“That is our policy.”</td><td>“Here is what I can do now, and what requires manager approval.”</td></tr>
+              <tr><td>“There is nothing else we can do.”</td><td>“I have reviewed the available options and this is the approved resolution.”</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-FDC-005</span>
+            <div class="policy-doc-title">
+              <h3>Front Desk Complaint Handling Playbook</h3>
+              <span>Intake, triage, escalation, and closure · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>A complaint is an opportunity to correct the stay, not an interruption. Assign an owner before handing a guest to another department, and never promise a remedy before reviewing records unless an immediate goodwill gesture is authorized.</p>
+            <table class="policy-table">
+              <tr><th>Situation</th><th>Response target</th></tr>
+              <tr><td>In-house, urgent issue</td><td>Acknowledge within 10 minutes</td></tr>
+              <tr><td>In-house, non-urgent issue</td><td>Acknowledge within 30 minutes</td></tr>
+              <tr><td>Post-stay email complaint</td><td>Same business day</td></tr>
+              <tr><td>VIP material complaint</td><td>Manager acknowledgement same day</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-HCR-006</span>
+            <div class="policy-doc-title">
+              <h3>Historical Case Resolution Guide</h3>
+              <span>Past resolution patterns by incident type · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>Past cases guide proportional judgment; they are not automatic rules. Consistency depends on verified responsibility, impact duration, guest relationship, and whether the failure was preventable.</p>
+            <table class="policy-table">
+              <tr><th>Pattern</th><th>Typical decision</th></tr>
+              <tr><td>Verified serious cleanliness failure</td><td>Partial to one-night adjustment</td></tr>
+              <tr><td>Known, unresolved maintenance defect</td><td>One affected night, or more if repeated</td></tr>
+              <tr><td>Minor issue corrected quickly</td><td>Apology, small amenity, or points</td></tr>
+              <tr><td>VIP material disruption</td><td>Manager involvement, tailored remedy</td></tr>
+              <tr><td>Unsupported high-value demand</td><td>Respectful explanation, modest goodwill if warranted</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-GRC-001</span>
+            <div class="policy-doc-title">
+              <h3>Guest Recovery &amp; Compensation Policy</h3>
+              <span>Severity model, evidence, and approval authority · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>Guests may raise a compensation request for anything from a minor inconvenience up to a critical safety incident. The remedy must match verified impact, not just the guest's ask — and every remedy needs an approver within their authority limit.</p>
+            <table class="policy-table">
+              <tr><th>Severity</th><th>Guest can typically ask for</th></tr>
+              <tr><td>Level 1 — minor inconvenience</td><td>Apology, amenity, up to 10% of affected night</td></tr>
+              <tr><td>Level 2 — service failure</td><td>10–30% of affected night, room move, voucher</td></tr>
+              <tr><td>Level 3 — material stay disruption</td><td>One affected night refund, future upgrade, points</td></tr>
+              <tr><td>Level 4 — critical incident</td><td>Manager escalation, potential full-stay adjustment</td></tr>
+            </table>
+            <table class="policy-table">
+              <tr><th>Approver</th><th>Max authority</th></tr>
+              <tr><td>Front desk associate</td><td>€50 equivalent</td></tr>
+              <tr><td>Guest experience supervisor</td><td>€150 equivalent</td></tr>
+              <tr><td>Duty manager</td><td>€350 equivalent</td></tr>
+              <tr><td>Property general manager</td><td>Above €350</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-HSK-003</span>
+            <div class="policy-doc-title">
+              <h3>Housekeeping SOP &amp; Room Quality Manual</h3>
+              <span>Cleaning, inspection, and room status standards · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>A room may only be released as "inspected" once it meets Aurelia's cleanliness and safety standard. Bathroom hygiene failures are treated more seriously than cosmetic ones, since they affect guest trust directly.</p>
+            <table class="policy-table">
+              <tr><th>Area</th><th>Counts as a failure when</th></tr>
+              <tr><td>Toilet</td><td>Hair, visible stain, odor, unclean base</td></tr>
+              <tr><td>Shower / bath</td><td>Hair in drain, soap scum, mold marking, standing water</td></tr>
+              <tr><td>Sink &amp; counter</td><td>Spots, residue around tap, water rings</td></tr>
+              <tr><td>Towels &amp; amenities</td><td>Missing, stained, or unsealed items</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-LVP-002</span>
+            <div class="policy-doc-title">
+              <h3>Loyalty &amp; VIP Handling Policy</h3>
+              <span>Tier recognition and recovery escalation · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>Loyalty tier never proves a claim, but it changes urgency and who should be involved once impact is verified. High-value guests should never be passed between departments without a named owner.</p>
+            <table class="policy-table">
+              <tr><th>Situation</th><th>Target time</th></tr>
+              <tr><td>VIP complaint during stay</td><td>15-minute acknowledgement</td></tr>
+              <tr><td>VIP complaint after departure</td><td>Same business day</td></tr>
+              <tr><td>Ambassador-tier complaint</td><td>Same day, or next morning if after hours</td></tr>
+              <tr><td>Corporate account complaint</td><td>Within one business day</td></tr>
+            </table>
+          </div>
+        </details>
+
+        <details class="policy-doc">
+          <summary>
+            <span class="policy-doc-id">AGHG-MNT-004</span>
+            <div class="policy-doc-title">
+              <h3>Maintenance Escalation Manual</h3>
+              <span>Defect priority and room-blocking rules · v3.0</span>
+            </div>
+            <svg class="policy-doc-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </summary>
+          <div class="policy-doc-body">
+            <p>A guest's compensation request often traces back to a maintenance defect. Priority must match guest impact, not repair convenience — and a room with an unresolved P1/P2 defect should be blocked rather than sold.</p>
+            <table class="policy-table">
+              <tr><th>Priority</th><th>Response target</th><th>Example</th></tr>
+              <tr><td>P1 — safety critical</td><td>Immediate dispatch</td><td>Lock failure, exposed wiring, flooding</td></tr>
+              <tr><td>P2 — comfort critical</td><td>Same shift</td><td>AC not cooling, no hot water</td></tr>
+              <tr><td>P3 — service impairment</td><td>24 hours</td><td>TV issue, slow drain, lamp out</td></tr>
+              <tr><td>P4 — planned maintenance</td><td>Scheduled</td><td>Paint touch-up, furniture scuff</td></tr>
+            </table>
+          </div>
+        </details>
+
+      </div>
+    </section>
   </main>
 </div>
 
@@ -703,7 +899,6 @@ function renderReviews(){
 
   document.getElementById('board-pending').textContent = pendingCount;
   document.getElementById('panelCount').textContent = pendingCount;
-  document.getElementById('navCount').textContent = pendingCount;
 
   if(reviews.length === 0){
     feed.innerHTML = `
@@ -848,6 +1043,29 @@ function rejectReview(id){
       renderReviews();
     }, 450);
   }, 900);
+}
+
+/* Toggles between the normal dashboard (stats board + approval queue +
+   activity) and the full-width policy reference panel. Both live in the
+   same file as the two-column dashboard, so nothing needs to be fetched. */
+function togglePolicies(){
+  const board = document.querySelector('.board');
+  const grid = document.querySelector('.section-grid');
+  const panel = document.getElementById('policiesPanel');
+  const navItem = document.getElementById('navSettings');
+  const showingPolicies = panel.hidden;
+
+  board.hidden = showingPolicies;
+  grid.hidden = showingPolicies;
+  panel.hidden = !showingPolicies;
+  navItem.classList.toggle('active', true);
+
+  document.getElementById('mainTitle').textContent = showingPolicies
+    ? 'Policy reference'
+    : 'Guest complaints & reviews';
+  document.getElementById('mainSubtitle').textContent = showingPolicies
+    ? 'Aurelia Grand Hotel Group — controlled documents for complaint and compensation decisions'
+    : 'Review the compensation the AI proposed before it reaches the guest';
 }
 
 renderReviews();
