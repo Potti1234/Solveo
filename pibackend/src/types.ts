@@ -184,6 +184,53 @@ export type AuditRunResult = {
   actionPlan: ActionPlan | null;
   codeAnalyses: CodeExecutionResult[];
   memo: ComplianceMemo;
+  explainability: AuditExplainability;
+};
+
+export type AuditExplainability = {
+  documents: Array<{
+    kind: "credit_agreement" | "sec_filing" | "external_context";
+    title: string;
+    url: string;
+  }>;
+  toolCalls: Array<{
+    order: number;
+    tool: string;
+    purpose: string;
+    inputSummary: string;
+    outputSummary: string;
+  }>;
+  evidenceTrail: Array<{
+    label: string;
+    value?: number | string;
+    unit?: string;
+    period?: string;
+    source: string;
+    locator: string;
+    excerpt: string;
+  }>;
+  calculationTrail: Array<{
+    formula: string;
+    inputs: Array<{ name: string; value: number; unit: string; period: string }>;
+    actual: number;
+    threshold: number;
+    operator: string;
+    result: "pass" | "fail";
+  }>;
+  codeVerification: Array<{
+    language: CodeLanguage;
+    purpose: string;
+    exitCode: number | null;
+    timedOut: boolean;
+    stdoutPreview: string;
+  }>;
+  decisionTrail: {
+    status: ComplianceMemo["status"];
+    summary: string;
+    actionStatus?: ActionPlan["status"];
+    borrowerQuestions: string[];
+  };
+  caveats: string[];
 };
 
 export type ActionPlan = {

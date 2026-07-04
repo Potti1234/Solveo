@@ -32,6 +32,7 @@ Useful endpoints:
 - `GET /api/health`
 - `GET /api/runtime`
 - `POST /api/audits/run`
+- `POST /api/audits/report`
 - `GET /api/tools/definitions`
 - `POST /api/tools/execute-code`
 - `POST /api/tools/web-search`
@@ -101,6 +102,14 @@ Triple-Check & Act:
 - Reflective retrieval searches `Subsequent Events` and management liquidity/debt language after the first calculation.
 - If a covenant is failing or within 10% of its limit, the agent calls `web_search` for recent 8-K, debt, refinancing, or covenant context.
 - The response includes `actionPlan` with a credit-officer summary, pre-filled borrower email, three borrower questions, and dashboard chart configuration.
+
+Explainability report:
+
+```bash
+bun run audit:report MCK
+```
+
+The audit response includes `explainability`, a presentation-friendly trace with documents used, tool calls, evidence trail, calculation trail, code verification, decision trail, and caveats. `POST /api/audits/report` also returns a Markdown report for display or export.
 
 What-If Console:
 

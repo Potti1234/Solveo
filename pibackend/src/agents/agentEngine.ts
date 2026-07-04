@@ -14,6 +14,7 @@ import type {
 import { discoverCreditAgreementExhibits, findLatestFiling, resolveCompanyTicker } from "../services/sec";
 import { extractCovenantRulesContext, retrieveFinancialContext, scanCovenantKeywords } from "../services/retriever";
 import { llmClient } from "../services/vultr";
+import { buildAuditExplainability } from "../services/auditReport";
 import { calculateCovenants } from "../tools/calculator";
 import { executeCode } from "../tools/executeCode";
 import { buildMathVerificationScript, buildTwoQuarterProjectionScript } from "../tools/riskScripts";
@@ -79,14 +80,15 @@ export class AgentEngine {
     const memo: ComplianceMemo = {
       ticker: company?.ticker ?? request.ticker.toUpperCase(),
       status: calculations.some((calculation) => !calculation.compliant) ? "breach" : hasMeasuredCalculations ? "compliant" : "needs_review",
-      summary:
-        "Compliance memo includes script-backed math verification and two-quarter covenant stress projection. Wire retriever line items to move placeholder calculations into live document-derived analysis.",
+      summary: hasMeasuredCalculations
+        ? "Compliance memo includes cited filing evidence, script-backed math verification, and two-quarter covenant stress projection."
+        : "Compliance memo includes script-backed checks, but the agent did not extract enough measured values for a final covenant decision.",
       calculations,
       codeAnalyses,
       citations: [...retrievals, ...reflectiveChecks].flatMap((retrieval) => retrieval.citations)
     };
 
-    return {
+    const runResult = {
       thoughts: this.thoughts,
       creditAgreementUrl,
       keywordScan,
@@ -99,6 +101,7 @@ export class AgentEngine {
       codeAnalyses,
       memo
     };
+    return { ...runResult, explainability: buildAuditExplainability(runResult) };
   }
 
   private async runReflectiveRetrieval(documentUrl: string, rulebook: CovenantRulebook): Promise<RetrievalBlock[]> {
