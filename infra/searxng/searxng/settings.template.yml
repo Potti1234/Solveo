@@ -2,7 +2,7 @@ use_default_settings: true
 
 general:
   debug: false
-  instance_name: "Vultr Audit Search"
+  instance_name: "__SEARXNG_INSTANCE_NAME__"
   privacypolicy_url: false
   donation_url: false
   contact_url: false
@@ -19,7 +19,7 @@ search:
 server:
   bind_address: "0.0.0.0"
   port: 8080
-  secret_key: "replace-this-with-a-long-random-secret-before-public-deploy"
+  secret_key: "__SEARXNG_SECRET_KEY__"
   limiter: false
   image_proxy: false
   method: "POST"
