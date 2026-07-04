@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-04T00:00:00+02:00",
+  "title": "Design System: Concierge Court",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Command Ink",
+        "canonical": "#182026",
+        "tonalRamp": ["#11171b", "#182026", "#26323a", "#42505a", "#65727a", "#98a2a8", "#cbd1d5", "#f3f5f6"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Readable Muted",
+        "canonical": "#69747c",
+        "tonalRamp": ["#1f2529", "#343c42", "#4c575f", "#69747c", "#879199", "#aab2b8", "#d3d8dc", "#f4f6f7"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Rule Line",
+        "canonical": "#d9dee2",
+        "tonalRamp": ["#252b30", "#464f56", "#6c7780", "#96a0a8", "#b9c1c7", "#d9dee2", "#e8ecef", "#f7f8f9"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#202426", "#4b4f52", "#767b7e", "#a5aaad", "#d1d5d7", "#eceeef", "#f8f9fa", "#ffffff"]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Dashboard Wash",
+        "canonical": "#f5f7f8",
+        "tonalRamp": ["#1e2427", "#444b4f", "#6e777d", "#9ba4aa", "#c6cdd1", "#e4e8ea", "#f0f3f5", "#f5f7f8"]
+      },
+      "teal": {
+        "role": "primary",
+        "displayName": "Operational Teal",
+        "canonical": "#0f766e",
+        "tonalRamp": ["#062522", "#08423d", "#0b5f59", "#0f766e", "#179489", "#4cb3aa", "#97d7d1", "#dff5f2"]
+      },
+      "coral": {
+        "role": "tertiary",
+        "displayName": "Risk Coral",
+        "canonical": "#b42318",
+        "tonalRamp": ["#35100d", "#641711", "#8d1d15", "#b42318", "#d2463c", "#e17d76", "#f0b7b2", "#fde8e6"]
+      },
+      "amber": {
+        "role": "tertiary",
+        "displayName": "Policy Amber",
+        "canonical": "#a16207",
+        "tonalRamp": ["#2e1b03", "#573403", "#7b4b05", "#a16207", "#c57d12", "#dea64a", "#f1d394", "#fff1d6"]
+      },
+      "violet": {
+        "role": "secondary",
+        "displayName": "Intervention Violet",
+        "canonical": "#6d5dfc",
+        "tonalRamp": ["#19124a", "#2d2284", "#4a3ac9", "#6d5dfc", "#8b80ff", "#aaa3ff", "#d0ccff", "#efedff"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Dashboard titles and important modal titles only."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Panel headings, report groups, and case titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Rows, alert summaries, and conversation subjects."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Messages, reasoning, summaries, and draft responses."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Navigation, metadata, chips, and compact controls."
+      }
+    },
+    "shadows": [
+      {
+        "name": "crisp-rest",
+        "value": "0 1px 2px rgba(24, 32, 38, 0.08)",
+        "purpose": "Slight separation from the dashboard wash background."
+      },
+      {
+        "name": "popover-lift",
+        "value": "0 8px 24px rgba(24, 32, 38, 0.14)",
+        "purpose": "Menus, command palette, date pickers, and tooltips."
+      },
+      {
+        "name": "dialog-lift",
+        "value": "0 20px 48px rgba(24, 32, 38, 0.18)",
+        "purpose": "Dialogs and takeover confirmations."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-fast",
+        "value": "150ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Buttons, row hovers, tabs, and compact feedback."
+      },
+      {
+        "name": "panel-standard",
+        "value": "220ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Sheets, dropdowns, and expandable evidence panels."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "One primary action per local workflow region.",
+      "html": "<button class=\"ds-btn-primary\">Review draft</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 8px 12px; border: 0; border-radius: 8px; background: #0f766e; color: #ffffff; font: 600 12px/1.2 Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-primary:hover { background: #0b5f59; } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Default action button for secondary workflow controls.",
+      "html": "<button class=\"ds-btn-secondary\">Take over chat</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 8px 12px; border: 1px solid #d9dee2; border-radius: 8px; background: #ffffff; color: #182026; font: 600 12px/1.2 Inter, ui-sans-serif, system-ui, sans-serif; cursor: pointer; transition: border-color 150ms cubic-bezier(0.22, 1, 0.36, 1), background 150ms cubic-bezier(0.22, 1, 0.36, 1), transform 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-btn-secondary:hover { border-color: #0f766e; background: #eef8f6; } .ds-btn-secondary:active { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Compact semantic label for status, severity, and agent state.",
+      "html": "<span class=\"ds-chip ds-chip-live\">Agent live</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; min-height: 26px; padding: 5px 9px; border: 1px solid #d9dee2; border-radius: 999px; background: #ffffff; color: #69747c; font: 600 12px/1.2 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-chip-live { border-color: rgba(15, 118, 110, 0.3); background: rgba(15, 118, 110, 0.07); color: #0f766e; }"
+    },
+    {
+      "name": "Dashboard Card",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Flat manager-facing panel for summaries, reports, and grouped controls.",
+      "html": "<section class=\"ds-card\"><h3>Live agent work</h3><p>12 conversations active, 3 waiting for manager review.</p></section>",
+      "css": ".ds-card { width: 280px; padding: 16px; border: 1px solid #d9dee2; border-radius: 12px; background: #ffffff; color: #182026; box-shadow: 0 1px 2px rgba(24, 32, 38, 0.08); font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-card h3 { margin: 0; color: #182026; font-size: 15px; line-height: 1.35; font-weight: 650; } .ds-card p { margin: 8px 0 0; color: #69747c; font-size: 14px; line-height: 1.55; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "navigation",
+      "description": "Compact quick link for the manager dashboard sidebar.",
+      "html": "<a class=\"ds-nav-item ds-nav-item-active\" href=\"#\">Inbox</a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; height: 38px; padding: 0 10px; border-radius: 8px; color: #69747c; text-decoration: none; font: 600 13px/1 Inter, ui-sans-serif, system-ui, sans-serif; transition: background 150ms cubic-bezier(0.22, 1, 0.36, 1), color 150ms cubic-bezier(0.22, 1, 0.36, 1); } .ds-nav-item:hover { background: #eef2f4; color: #182026; } .ds-nav-item-active { background: rgba(15, 118, 110, 0.08); color: #0f766e; } .ds-nav-item:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Manager's Flight Board",
+    "overview": "Concierge Court should feel like a dense operations board for hotel leaders: clean, fast, legible, and always oriented around what needs attention. The redesigned dashboard uses a Linear-like product rhythm with a tight sidebar, crisp surfaces, quiet typography, and status-forward rows. It is not a marketing page and not a technical agent console; the interface exists to help managers understand what the AI agents are doing and where humans should step in.",
+    "keyCharacteristics": [
+      "Dense manager-first information layout with compact navigation and fast route switching.",
+      "Restrained neutral palette with teal used sparingly for primary actions, current location, and live agent activity.",
+      "Status semantics that combine color, label, icon, and shape so severity stays readable for everyone.",
+      "shadcn components as the baseline, restyled to fit Concierge Court rather than left at defaults.",
+      "Human interception controls are visible, direct, and phrased in hotel operations language."
+    ],
+    "rules": [
+      {
+        "name": "The Ten Percent Accent Rule",
+        "body": "Teal, violet, coral, and amber are operational signals, not decoration. If a screen feels colorful before the data is read, the color use is too loud.",
+        "section": "colors"
+      },
+      {
+        "name": "The Status Redundancy Rule",
+        "body": "Color never carries status alone. Every verdict, severity, confidence, and escalation state must include text and, when useful, an icon.",
+        "section": "colors"
+      },
+      {
+        "name": "The UI Scale Rule",
+        "body": "Do not use landing-page type scales in the dashboard. Product headings are fixed rem sizes, not fluid hero typography.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Jargon Label Rule",
+        "body": "Labels must describe user-facing work: \"Review draft\", \"Take over chat\", \"Escalate case\", \"View evidence\". Avoid internal agent-stage names unless the user is inspecting a trace.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Operations Rule",
+        "body": "Tables, inbox rows, trace items, and dashboard panels stay flat at rest. Depth is used for hierarchy and interaction, not visual softness.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use shadcn primitives as the implementation baseline, then tune tokens, density, and state vocabulary for Concierge Court.",
+      "Do make manager overview visible before detail: workload, live agents, risky chats, pending approvals, and operations patterns.",
+      "Do keep AI actions auditable with clear traces, citations, drafts, tickets, and intervention controls.",
+      "Do use the current restraint of Paper, Dashboard Wash, Command Ink, Rule Line, and Operational Teal as the base palette.",
+      "Do include keyboard states, skeleton loading, empty states, reduced-motion support, and color-blind-safe status patterns."
+    ],
+    "donts": [
+      "Don't make the dashboard feel overly technical, developer-first, or like an AI lab console.",
+      "Don't use generic SaaS marketing polish, luxury-hotel beige, decorative AI gradients, glassy effects, or empty dashboard ornament.",
+      "Don't hide human intervention. \"Take over chat\", \"Review draft\", \"Rerun investigation\", and \"Escalate case\" should be visible where the decision is made.",
+      "Don't use color alone for severity, verdict, confidence, or escalation state.",
+      "Don't create identical card grids with icon, heading, and paragraph repeated across the dashboard.",
+      "Don't pair 1px borders with large soft shadows on every surface. Pick crisp border-first layering for normal dashboard UI."
+    ]
+  }
+}
