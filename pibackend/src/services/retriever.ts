@@ -59,7 +59,7 @@ export async function scanCovenantKeywords(documentUrl: string): Promise<Covenan
 export async function retrieveFinancialContext(request: RetrieverRequest): Promise<RetrievalBlock> {
   const collection = await ensureDocumentCollection(request.documentUrl);
   if (collection) {
-    const rawResults = await llmClient.searchCollection(collection.collectionId, request.query);
+    const rawResults = await searchExpanded(collection.collectionId, request.query);
     const extraction = await llmClient.ragJson(
       collection.collectionId,
       [
@@ -82,11 +82,14 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
       isExtraction
     );
 
+    const inferredLineItems =
+      extraction.lineItems.length > 0 ? extraction.lineItems : await inferLineItems(request.documentUrl, request.query, rawResults);
+
     return {
       query: request.query,
       reasoning: request.reasoning,
       model: request.model ?? "prime",
-      lineItems: extraction.lineItems.length > 0 ? extraction.lineItems : inferLineItemsFromResults(request.documentUrl, request.query, rawResults),
+      lineItems: inferredLineItems,
       citations: extraction.citations.length > 0 ? extraction.citations : rawResults.slice(0, 5).map((result, index) => resultCitation(request.documentUrl, request.query, result, index)),
       rawResults: rawResults.slice(0, 8)
     };
@@ -99,6 +102,62 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
     lineItems: [],
     citations: [placeholderCitation(request.documentUrl, `${request.model ?? "prime"}-retriever-placeholder`, "Wire this to VultronRetriever for layout-aware extraction.")]
   };
+}
+
+async function searchExpanded(collectionId: string, query: string): Promise<VectorSearchResult[]> {
+  const queries = expandedQueries(query);
+  const seen = new Set<string>();
+  const results: VectorSearchResult[] = [];
+
+  for (const expandedQuery of queries) {
+    for (const result of await llmClient.searchCollection(collectionId, expandedQuery)) {
+      const key = result.content.slice(0, 240);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push(result);
+    }
+  }
+
+  return prioritizeResults(query, results).slice(0, 12);
+}
+
+function expandedQueries(query: string): string[] {
+  const queries = [query];
+  if (/debt/i.test(query)) {
+    queries.push("total long-term debt");
+    queries.push("lease and other obligations total debt");
+    queries.push("notes due total debt current portion");
+  }
+  if (/ebitda/i.test(query)) {
+    queries.push("net income interest expense income taxes depreciation amortization");
+    queries.push("operating income depreciation amortization interest expense income tax");
+    queries.push("adjusted EBITDA reconciliation");
+  }
+  return queries;
+}
+
+function prioritizeResults(query: string, results: VectorSearchResult[]): VectorSearchResult[] {
+  return [...results].sort((a, b) => scoreResult(query, b.content) - scoreResult(query, a.content));
+}
+
+function scoreResult(query: string, content: string): number {
+  const text = content.toLowerCase();
+  let score = 0;
+  if (/debt/i.test(query)) {
+    if (text.includes("total debt")) score += 10;
+    if (text.includes("total long-term debt")) score += 5;
+    if (text.includes("current portion")) score += 3;
+    if (text.includes("notes due")) score += 2;
+  }
+  if (/ebitda/i.test(query)) {
+    if (text.includes("ebitda")) score += 10;
+    if (text.includes("net income")) score += 4;
+    if (text.includes("depreciation")) score += 3;
+    if (text.includes("amortization")) score += 3;
+    if (text.includes("interest expense")) score += 2;
+    if (text.includes("income tax")) score += 2;
+  }
+  return score;
 }
 
 export async function extractCovenantRulesContext(documentUrl: string, keywordScan: CovenantKeywordScan): Promise<RetrievalBlock> {
@@ -256,16 +315,26 @@ function fallbackExtraction(documentUrl: string, query: string, rawResults: Vect
   };
 }
 
+async function inferLineItems(documentUrl: string, query: string, rawResults: VectorSearchResult[]): Promise<FinancialLineItem[]> {
+  const fromResults = inferLineItemsFromResults(documentUrl, query, rawResults);
+  if (!/ebitda/i.test(query) || fromResults.some((item) => item.name === "EBITDA")) return fromResults;
+
+  const documentText = await fetchDocumentText(documentUrl);
+  const fromDocument = inferEbitdaComponentsFromText(documentUrl, documentText);
+  return mergeLineItems(fromResults, fromDocument);
+}
+
 function inferLineItemsFromResults(documentUrl: string, query: string, rawResults: VectorSearchResult[]): FinancialLineItem[] {
   const text = rawResults.map((result) => result.content).join(" ");
   const items: FinancialLineItem[] = [];
+  const multiplier = inferFinancialScale(text, documentUrl);
 
   if (/total debt/i.test(query) || /debt/i.test(query)) {
     const value = firstNumberAfterLabel(text, /total\s+debt/i);
     if (value !== null) {
       items.push({
         name: "Total Debt",
-        value,
+        value: value * multiplier,
         unit: "usd",
         period: "latest retrieved period",
         citations: [resultCitation(documentUrl, query, rawResults[0], 0)]
@@ -278,7 +347,7 @@ function inferLineItemsFromResults(documentUrl: string, query: string, rawResult
     if (value !== null) {
       items.push({
         name: "EBITDA",
-        value,
+        value: value * multiplier,
         unit: "usd",
         period: "latest retrieved period",
         citations: [resultCitation(documentUrl, query, rawResults[0], 0)]
@@ -289,20 +358,114 @@ function inferLineItemsFromResults(documentUrl: string, query: string, rawResult
   return items;
 }
 
+function inferEbitdaComponentsFromText(documentUrl: string, text: string): FinancialLineItem[] {
+  const items: FinancialLineItem[] = [];
+  const multiplier = inferFinancialScale(text, documentUrl);
+  const components = [
+    { name: "Net Income", label: /net\s+income(?!\s+attributable)/i, valueIndex: 2 },
+    { name: "Interest Expense", label: /interest\s+expense/i, valueIndex: 2 },
+    { name: "Income Tax Expense", label: /income\s+tax\s+expense/i, valueIndex: 2 },
+    { name: "Depreciation", label: /depreciation(?!\s+and\s+amortization)/i, valueIndex: 0 },
+    { name: "Amortization", label: /amortization/i, valueIndex: 0 }
+  ];
+
+  for (const component of components) {
+    const parsed = statementValueAfterLabel(text, component.label, component.valueIndex);
+    if (!parsed) continue;
+    items.push({
+      name: component.name,
+      value: parsed.value * multiplier,
+      unit: "usd",
+      period: parsed.period,
+      citations: [
+        {
+          source: documentUrl,
+          locator: component.name.toLowerCase().replaceAll(" ", "-"),
+          excerpt: parsed.excerpt.slice(0, 500)
+        }
+      ]
+    });
+  }
+
+  const byName = new Map(items.map((item) => [item.name, item.value]));
+  const required = ["Net Income", "Interest Expense", "Income Tax Expense", "Depreciation", "Amortization"];
+  if (required.every((name) => byName.has(name))) {
+    const value = required.reduce((sum, name) => sum + (byName.get(name) ?? 0), 0);
+    items.push({
+      name: "EBITDA",
+      value,
+      unit: "usd",
+      period: "derived from latest available nine-month period",
+      citations: items.flatMap((item) => item.citations).slice(0, 5)
+    });
+  }
+
+  return items;
+}
+
 function parseFinancialNumber(value: string): number {
   return Number(value.replace(/[,\s]/g, ""));
 }
 
 function firstNumberAfterLabel(text: string, label: RegExp): number | null {
-  const labelMatch = label.exec(text);
-  if (!labelMatch || labelMatch.index < 0) return null;
+  const matcher = new RegExp(label.source, label.flags.includes("i") ? "gi" : "g");
+  const candidates: number[] = [];
+  let labelMatch: RegExpExecArray | null;
 
-  const afterLabel = text.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 80);
-  const grouped = /(\d{1,3}(?:,\s*\d{3})+)/.exec(afterLabel);
-  if (grouped) return parseFinancialNumber(grouped[1]);
+  while ((labelMatch = matcher.exec(text)) !== null) {
+    const afterLabel = text.slice(labelMatch.index + labelMatch[0].length, labelMatch.index + labelMatch[0].length + 120);
+    const grouped = /(\d{1,3}(?:,\s*\d{3})+)/.exec(afterLabel);
+    if (grouped) {
+      candidates.push(parseFinancialNumber(grouped[1]));
+      continue;
+    }
 
-  const plain = /(\d+(?:\.\d+)?)/.exec(afterLabel);
-  return plain ? parseFinancialNumber(plain[1]) : null;
+    const plain = /(\d+(?:\.\d+)?)/.exec(afterLabel);
+    if (plain) candidates.push(parseFinancialNumber(plain[1]));
+  }
+
+  const meaningful = candidates.find((candidate) => candidate > 100);
+  return meaningful ?? candidates[0] ?? null;
+}
+
+function statementValueAfterLabel(text: string, label: RegExp, valueIndex: number): { value: number; period: string; excerpt: string } | null {
+  const matcher = new RegExp(label.source, label.flags.includes("i") ? "gi" : "g");
+  let match: RegExpExecArray | null;
+
+  while ((match = matcher.exec(text)) !== null) {
+    const excerpt = text.slice(Math.max(0, match.index - 120), match.index + 420);
+    const afterLabel = text.slice(match.index + match[0].length, match.index + match[0].length + 180);
+    const values = financialNumbers(afterLabel);
+    if (values.length === 0) continue;
+
+    return {
+      value: values[valueIndex] ?? values[0],
+      period: valueIndex === 2 ? "nine months ended current year" : "latest current period",
+      excerpt
+    };
+  }
+
+  return null;
+}
+
+function financialNumbers(text: string): number[] {
+  const matches = text.matchAll(/\(?\s*\$?\s*(\d{1,3}(?:,\s*\d{3})+|\d+(?:\.\d+)?)\s*\)?/g);
+  return [...matches].map((match) => parseFinancialNumber(match[1])).filter((value) => Number.isFinite(value));
+}
+
+function mergeLineItems(primary: FinancialLineItem[], secondary: FinancialLineItem[]): FinancialLineItem[] {
+  const byName = new Map<string, FinancialLineItem>();
+  for (const item of [...primary, ...secondary]) {
+    byName.set(item.name, item);
+  }
+  return [...byName.values()];
+}
+
+function inferFinancialScale(text: string, documentUrl: string): number {
+  if (/\b(in|amounts in|dollars in)\s+millions\b/i.test(text)) return 1_000_000;
+  if (/\b(in|amounts in|dollars in)\s+thousands\b/i.test(text)) return 1_000;
+  if (/\/Archives\/edgar\/data\//i.test(documentUrl)) return 1_000_000;
+  return 1;
 }
 
 function isExtraction(value: unknown): value is RetrieverExtraction {

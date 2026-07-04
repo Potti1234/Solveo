@@ -75,9 +75,10 @@ export class AgentEngine {
     const actionPlan = this.buildActionPlan(company?.ticker ?? request.ticker.toUpperCase(), calculations, externalContext);
 
     this.think("reporting", "Preparing audit-ready compliance memo with citations.");
+    const hasMeasuredCalculations = calculations.some((calculation) => calculation.actual > 0);
     const memo: ComplianceMemo = {
       ticker: company?.ticker ?? request.ticker.toUpperCase(),
-      status: calculations.some((calculation) => !calculation.compliant) ? "breach" : "needs_review",
+      status: calculations.some((calculation) => !calculation.compliant) ? "breach" : hasMeasuredCalculations ? "compliant" : "needs_review",
       summary:
         "Compliance memo includes script-backed math verification and two-quarter covenant stress projection. Wire retriever line items to move placeholder calculations into live document-derived analysis.",
       calculations,

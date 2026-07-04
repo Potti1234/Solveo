@@ -3,6 +3,10 @@ import type { CovenantCalculation, CovenantRule, RetrievalBlock } from "../types
 type MetricInputs = {
   totalDebt?: number;
   ebitda?: number;
+  netIncome?: number;
+  incomeTaxExpense?: number;
+  depreciation?: number;
+  amortization?: number;
   liquidity?: number;
   interestExpense?: number;
 };
@@ -33,9 +37,15 @@ function collectMetricInputs(retrievals: RetrievalBlock[]): MetricInputs {
     const key = item.name.toLowerCase();
     if (key.includes("total debt")) inputs.totalDebt = item.value;
     if (key.includes("ebitda")) inputs.ebitda = item.value;
+    if (key === "net income") inputs.netIncome = item.value;
+    if (key.includes("income tax")) inputs.incomeTaxExpense = item.value;
+    if (key === "depreciation") inputs.depreciation = item.value;
+    if (key === "amortization") inputs.amortization = item.value;
     if (key.includes("liquidity") || key.includes("cash")) inputs.liquidity = item.value;
     if (key.includes("interest expense")) inputs.interestExpense = item.value;
   }
+
+  inputs.ebitda ??= deriveEbitda(inputs);
 
   return inputs;
 }
@@ -50,6 +60,18 @@ function calculateMetric(metric: CovenantRule["metric"], inputs: MetricInputs): 
 function safeDivide(numerator?: number, denominator?: number): number {
   if (!numerator || !denominator) return 0;
   return numerator / denominator;
+}
+
+function deriveEbitda(inputs: MetricInputs): number | undefined {
+  const components: Array<number | undefined> = [
+    inputs.netIncome,
+    inputs.interestExpense,
+    inputs.incomeTaxExpense,
+    inputs.depreciation,
+    inputs.amortization
+  ];
+  if (components.some((value) => typeof value !== "number")) return undefined;
+  return components.reduce<number>((sum, value) => sum + (value ?? 0), 0);
 }
 
 function formulaFor(metric: CovenantRule["metric"]): string {
