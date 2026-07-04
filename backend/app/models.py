@@ -61,6 +61,21 @@ class Adjudication(BaseModel):
     escalate: bool
 
 
+class IntentResult(BaseModel):
+    intent: Literal[
+        "complaint",
+        "missing_details",
+        "normal_statement",
+        "question",
+        "small_talk",
+        "handoff_request",
+    ]
+    confidence: float = Field(ge=0, le=1)
+    should_run_case: bool
+    reply: str | None = None
+    reason: str = ""
+
+
 class AgentEvent(BaseModel):
     event_type: str
     title: str

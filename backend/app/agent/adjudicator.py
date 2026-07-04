@@ -35,6 +35,7 @@ def _fallback_decision(message: InboxMessage, evidence: list[dict[str, Any]]) ->
     history = _tool_data(evidence, "guest_history.lookup").get("history", {})
     vision = _tool_data(evidence, "vision.verify").get("observations", [])
     comp = _tool_data(evidence, "compensation.evaluate")
+    room = message.room or _tool_data(evidence, "bookings.lookup").get("room")
 
     if AC_RE.search(text):
         hvac_support = any(record.get("issue_type") == "hvac" and record.get("severity") in {"high", "critical"} for record in maintenance_records)
@@ -43,8 +44,8 @@ def _fallback_decision(message: InboxMessage, evidence: list[dict[str, Any]]) ->
                 verdict="legitimate",
                 confidence=0.93,
                 reasoning=(
-                    "The booking confirms the stay, maintenance logs corroborate an overnight HVAC failure in Room "
-                    f"{message.room}, and the compensation matrix authorizes 30% rather than a full refund."
+                    "The booking confirms the stay, maintenance logs corroborate an overnight HVAC failure in "
+                    f"{f'Room {room}' if room else 'the guest room'}, and the compensation matrix authorizes 30% rather than a full refund."
                 ),
                 policy_basis=_prefer(policy_citations, ["§4.2", "§4.3", "§6.1"]),
                 compensation=CompensationDecision(
@@ -58,7 +59,7 @@ def _fallback_decision(message: InboxMessage, evidence: list[dict[str, Any]]) ->
     if any(term in text for term in ["mold", "filth", "dirty", "cleanliness"]):
         captions = " ".join(item.get("caption", "") for item in vision).lower()
         serial_refunds = int(history.get("prior_refunds") or 0) >= 3
-        cleaning_support = any(record.get("room") == message.room and record.get("issue_type") in {"housekeeping", "plumbing"} for record in maintenance_records)
+        cleaning_support = any(record.get("room") == room and record.get("issue_type") in {"housekeeping", "plumbing"} for record in maintenance_records)
         if cleaning_support and ("no visible mold" in captions or "water stain" in captions or vision):
             return Adjudication(
                 verdict="unsubstantiated",

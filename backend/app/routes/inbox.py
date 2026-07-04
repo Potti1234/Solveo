@@ -1,14 +1,47 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.db import connect
 
 
 router = APIRouter(prefix="/api/inbox", tags=["inbox"])
+
+
+class CreateMessageRequest(BaseModel):
+    body: str
+    subject: str = "Typed test complaint"
+    guest_name: str = "Test Guest"
+    sender: str = "test@guest.local"
+    room: str | None = None
+    channel: str = "chat"
+
+
+@router.post("")
+def create_message(payload: CreateMessageRequest) -> dict[str, Any]:
+    if not payload.body.strip():
+        raise HTTPException(status_code=422, detail="Message body must not be empty")
+    message_id = f"msg_text_{int(time.time() * 1000)}"
+    conn = connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO inbox_messages
+            (id, received_at, channel, sender, guest_name, room, subject, body, attachments_json, status)
+            VALUES (?, datetime('now'), ?, ?, ?, ?, ?, ?, '[]', 'new')
+            """,
+            (message_id, payload.channel, payload.sender, payload.guest_name, payload.room, payload.subject, payload.body),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM inbox_messages WHERE id = ?", (message_id,)).fetchone()
+        return _decode(row)
+    finally:
+        conn.close()
 
 
 @router.get("")
