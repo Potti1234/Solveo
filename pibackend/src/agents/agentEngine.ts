@@ -1,8 +1,10 @@
-import type { AuditRequest, AuditRunResult, AuditThought, ComplianceMemo, CovenantRulebook, FilingPlan } from "../types";
+import type { AuditRequest, AuditRunResult, AuditThought, CodeExecutionResult, ComplianceMemo, CovenantRulebook, FilingPlan } from "../types";
 import { discoverCreditAgreementExhibits, findLatestFiling, resolveCompanyTicker } from "../services/sec";
 import { extractCovenantRulesContext, retrieveFinancialContext, scanCovenantKeywords } from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { calculateCovenants } from "../tools/calculator";
+import { executeCode } from "../tools/executeCode";
+import { buildMathVerificationScript, buildTwoQuarterProjectionScript } from "../tools/riskScripts";
 
 export class AgentEngine {
   private readonly thoughts: AuditThought[] = [];
@@ -54,18 +56,56 @@ export class AgentEngine {
 
     this.think("calculation", "Computing covenant ratios with extracted line items.");
     const calculations = calculateCovenants(rulebook.rules, retrievals);
+    const codeAnalyses = await this.runCodeAnalyses(rulebook, calculations, retrievals);
 
     this.think("reporting", "Preparing audit-ready compliance memo with citations.");
     const memo: ComplianceMemo = {
       ticker: company?.ticker ?? request.ticker.toUpperCase(),
       status: calculations.some((calculation) => !calculation.compliant) ? "breach" : "needs_review",
       summary:
-        "Placeholder memo generated from the cleaned backend skeleton. Wire retriever line items to move this from needs_review to compliant/breach.",
+        "Compliance memo includes script-backed math verification and two-quarter covenant stress projection. Wire retriever line items to move placeholder calculations into live document-derived analysis.",
       calculations,
+      codeAnalyses,
       citations: retrievals.flatMap((retrieval) => retrieval.citations)
     };
 
-    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, codeAnalyses: [], memo };
+    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, codeAnalyses, memo };
+  }
+
+  private async runCodeAnalyses(
+    rulebook: CovenantRulebook,
+    calculations: ReturnType<typeof calculateCovenants>,
+    retrievals: Awaited<ReturnType<typeof retrieveFinancialContext>>[]
+  ): Promise<CodeExecutionResult[]> {
+    const scripts = [
+      {
+        title: "Writing Python script to verify covenant math.",
+        code: buildMathVerificationScript({ rulebook, calculations, retrievals })
+      },
+      {
+        title: "Writing Python script to project breach risk over the next two quarters.",
+        code: buildTwoQuarterProjectionScript({ rulebook, calculations, retrievals })
+      }
+    ];
+
+    const results: CodeExecutionResult[] = [];
+    for (const script of scripts) {
+      this.think("code_execution", script.title, {
+        language: "python",
+        code: script.code
+      });
+      const result = await executeCode({ language: "python", code: script.code });
+      this.think("code_execution", "Executed analyst script.", {
+        language: result.language,
+        exitCode: result.exitCode,
+        timedOut: result.timedOut,
+        stdout: result.stdout,
+        stderr: result.stderr
+      });
+      results.push(result);
+    }
+
+    return results;
   }
 
   private async scanCreditAgreement(creditAgreementUrl: string) {
@@ -100,7 +140,7 @@ export class AgentEngine {
         {
           role: "system",
           content:
-            "Extract loan financial covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations."
+            "Extract loan financial covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations. Think like a quant: identify formulas, units, and conditional covenant logic that may require code verification."
         },
         { role: "user", content: JSON.stringify({ request, creditAgreementUrl, ruleContext }) }
       ],
@@ -126,7 +166,7 @@ export class AgentEngine {
         {
           role: "system",
           content:
-            "Plan which SEC filing and table queries are needed for covenant testing. Return strict JSON with ticker, filingType, targetPeriod, requiredLineItems, retrievalQueries, rationale."
+            "Plan which SEC filing and table queries are needed for covenant testing. Return strict JSON with ticker, filingType, targetPeriod, requiredLineItems, retrievalQueries, rationale. Normalize units across SEC filings and credit agreements, reconcile conflicting tables, and gather historical variables needed for two-quarter stress testing."
         },
         { role: "user", content: JSON.stringify({ ticker, company, rulebook }) }
       ],

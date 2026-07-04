@@ -70,5 +70,9 @@ Agent covenant discovery flow:
    `Financial Covenants`, `Consolidated Leverage Ratio`, `Fixed Charge Coverage Ratio`,
    `Negative Covenants`, `Compliance Certificate`, and `Form of Compliance Certificate`.
 5. Pass the relevant context to VultronRetrieverPrime-style rule extraction.
+6. Write and run a Python script to verify the covenant math.
+7. Write and run a second Python script to project breach risk over the next two quarters.
+
+Both scripts are returned in `thoughts` with phase `code_execution`, so the frontend can show the code block and execution output in the agent trace.
 
 The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.
