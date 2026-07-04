@@ -9,6 +9,8 @@ The product has four main parts:
 3. Hotel dashboard for monitoring chats, questions, and escalations
 4. Public landing page explaining and selling the product to hotels
 
+> **Note:** This README contains both the product vision and current implementation details. The repository structure section below describes a proposed ideal architecture, but the actual codebase may differ. **Developers should add features to the current code structure without worrying about matching the proposed layout**—the README will be updated as the architecture evolves.
+
 ## Product Goal
 
 Hotels receive many repeated guest questions about check-in, breakfast, parking, spa access, room service, local recommendations, and policies. Solveo should reduce front-desk workload while keeping staff in control of sensitive or unresolved conversations.
