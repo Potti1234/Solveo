@@ -96,6 +96,20 @@ export type CodeExecutionResult = {
   durationMs: number;
 };
 
+export type WebSearchResult = {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedAt?: string | null;
+  source?: string | null;
+};
+
+export type WebSearchResponse = {
+  provider: "searxng" | "brave" | "disabled";
+  query: string;
+  results: WebSearchResult[];
+};
+
 export type AuditThought = {
   phase:
     | "sec_lookup"
@@ -160,6 +174,27 @@ export type AuditRunResult = {
   rulebook: CovenantRulebook;
   plan: FilingPlan;
   retrievals: RetrievalBlock[];
+  reflectiveChecks: RetrievalBlock[];
+  externalContext: WebSearchResponse | null;
+  actionPlan: ActionPlan | null;
   codeAnalyses: CodeExecutionResult[];
   memo: ComplianceMemo;
+};
+
+export type ActionPlan = {
+  status: "pass" | "warning" | "fail";
+  creditOfficerSummary: string;
+  emailDraft: {
+    subject: string;
+    body: string;
+  };
+  borrowerQuestions: string[];
+  dashboardConfig: {
+    charts: Array<{
+      id: string;
+      title: string;
+      type: "line" | "bar" | "ratio";
+      dataKey: string;
+    }>;
+  };
 };

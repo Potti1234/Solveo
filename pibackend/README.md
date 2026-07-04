@@ -34,6 +34,7 @@ Useful endpoints:
 - `POST /api/audits/run`
 - `GET /api/tools/definitions`
 - `POST /api/tools/execute-code`
+- `POST /api/tools/web-search`
 - `GET /api/sec/tickers/search?q=apple`
 - `GET /api/sec/tickers/AAPL`
 - `GET /api/sec/filings/AAPL/exhibits/10-1`
@@ -60,6 +61,17 @@ curl -X POST http://localhost:8001/api/tools/execute-code \
 
 The local executor is intended for hackathon development. For production, replace `src/tools/executeCode.ts`
 with an E2B or Docker-backed executor while keeping the same tool contract.
+
+Web search:
+
+The free-first provider is SearXNG. Run or deploy a SearXNG instance with JSON output enabled, then set:
+
+```bash
+WEB_SEARCH_PROVIDER=searxng
+SEARXNG_BASE_URL=http://localhost:8080
+```
+
+For a hosted fallback, set `WEB_SEARCH_PROVIDER=brave` and `BRAVE_SEARCH_API_KEY`.
 
 Agent covenant discovery flow:
 

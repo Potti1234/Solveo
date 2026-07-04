@@ -69,7 +69,19 @@ export class AgentEngine {
       citations: retrievals.flatMap((retrieval) => retrieval.citations)
     };
 
-    return { thoughts: this.thoughts, creditAgreementUrl, keywordScan, rulebook, plan, retrievals, codeAnalyses, memo };
+    return {
+      thoughts: this.thoughts,
+      creditAgreementUrl,
+      keywordScan,
+      rulebook,
+      plan,
+      retrievals,
+      reflectiveChecks: [],
+      externalContext: null,
+      actionPlan: null,
+      codeAnalyses,
+      memo
+    };
   }
 
   private async runCodeAnalyses(
