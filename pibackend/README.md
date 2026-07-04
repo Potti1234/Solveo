@@ -87,4 +87,10 @@ Agent covenant discovery flow:
 
 Both scripts are returned in `thoughts` with phase `code_execution`, so the frontend can show the code block and execution output in the agent trace.
 
+Triple-Check & Act:
+
+- Reflective retrieval searches `Subsequent Events` and management liquidity/debt language after the first calculation.
+- If a covenant is failing or within 10% of its limit, the agent calls `web_search` for recent 8-K, debt, refinancing, or covenant context.
+- The response includes `actionPlan` with a credit-officer summary, pre-filled borrower email, three borrower questions, and dashboard chart configuration.
+
 The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.

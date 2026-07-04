@@ -1,10 +1,23 @@
-import type { AuditRequest, AuditRunResult, AuditThought, CodeExecutionResult, ComplianceMemo, CovenantRulebook, FilingPlan } from "../types";
+import type {
+  ActionPlan,
+  AuditRequest,
+  AuditRunResult,
+  AuditThought,
+  CodeExecutionResult,
+  ComplianceMemo,
+  CovenantCalculation,
+  CovenantRulebook,
+  FilingPlan,
+  RetrievalBlock,
+  WebSearchResponse
+} from "../types";
 import { discoverCreditAgreementExhibits, findLatestFiling, resolveCompanyTicker } from "../services/sec";
 import { extractCovenantRulesContext, retrieveFinancialContext, scanCovenantKeywords } from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { calculateCovenants } from "../tools/calculator";
 import { executeCode } from "../tools/executeCode";
 import { buildMathVerificationScript, buildTwoQuarterProjectionScript } from "../tools/riskScripts";
+import { webSearch } from "../tools/webSearch";
 
 export class AgentEngine {
   private readonly thoughts: AuditThought[] = [];
@@ -56,7 +69,10 @@ export class AgentEngine {
 
     this.think("calculation", "Computing covenant ratios with extracted line items.");
     const calculations = calculateCovenants(rulebook.rules, retrievals);
+    const reflectiveChecks = await this.runReflectiveRetrieval(filing.url, rulebook);
     const codeAnalyses = await this.runCodeAnalyses(rulebook, calculations, retrievals);
+    const externalContext = await this.maybeSearchExternalContext(company?.ticker ?? request.ticker.toUpperCase(), calculations);
+    const actionPlan = this.buildActionPlan(company?.ticker ?? request.ticker.toUpperCase(), calculations, externalContext);
 
     this.think("reporting", "Preparing audit-ready compliance memo with citations.");
     const memo: ComplianceMemo = {
@@ -66,7 +82,7 @@ export class AgentEngine {
         "Compliance memo includes script-backed math verification and two-quarter covenant stress projection. Wire retriever line items to move placeholder calculations into live document-derived analysis.",
       calculations,
       codeAnalyses,
-      citations: retrievals.flatMap((retrieval) => retrieval.citations)
+      citations: [...retrievals, ...reflectiveChecks].flatMap((retrieval) => retrieval.citations)
     };
 
     return {
@@ -76,12 +92,37 @@ export class AgentEngine {
       rulebook,
       plan,
       retrievals,
-      reflectiveChecks: [],
-      externalContext: null,
-      actionPlan: null,
+      reflectiveChecks,
+      externalContext,
+      actionPlan,
       codeAnalyses,
       memo
     };
+  }
+
+  private async runReflectiveRetrieval(documentUrl: string, rulebook: CovenantRulebook): Promise<RetrievalBlock[]> {
+    const queries = [
+      "Subsequent Events new debt repayment refinancing covenant compliance",
+      "Management's Discussion liquidity capital resources debt obligations covenant"
+    ];
+
+    const checks: RetrievalBlock[] = [];
+    for (const query of queries) {
+      this.think("retrieval", `Triple-checking calculation against: ${query}`, {
+        query,
+        documentUrl
+      });
+      checks.push(
+        await retrieveFinancialContext({
+          documentUrl,
+          query,
+          model: "prime",
+          reasoning: `Reflective retrieval to find sections that could contradict or qualify ${rulebook.rules.map((rule) => rule.name).join(", ")}.`
+        })
+      );
+    }
+
+    return checks;
   }
 
   private async runCodeAnalyses(
@@ -118,6 +159,75 @@ export class AgentEngine {
     }
 
     return results;
+  }
+
+  private async maybeSearchExternalContext(ticker: string, calculations: CovenantCalculation[]): Promise<WebSearchResponse | null> {
+    const nearLimit = calculations.some((calculation) => {
+      if (calculation.threshold === 0) return false;
+      const distance = Math.abs(calculation.threshold - calculation.actual) / Math.abs(calculation.threshold);
+      return distance <= 0.1 || !calculation.compliant;
+    });
+
+    if (!nearLimit) return null;
+
+    const query = `${ticker} recent 8-K new debt refinancing covenant credit agreement`;
+    this.think("retrieval", "Ratio is near limit or failing; searching the live web for recent financing context.", { query });
+    const result = await webSearch(query, 5);
+    this.think("retrieval", "Completed external context search.", {
+      provider: result.provider,
+      resultCount: result.results.length,
+      topResults: result.results.slice(0, 3)
+    });
+    return result;
+  }
+
+  private buildActionPlan(ticker: string, calculations: CovenantCalculation[], externalContext: WebSearchResponse | null): ActionPlan {
+    const hasBreach = calculations.some((calculation) => !calculation.compliant);
+    const nearLimit = calculations.some((calculation) => {
+      if (calculation.threshold === 0) return false;
+      return Math.abs(calculation.threshold - calculation.actual) / Math.abs(calculation.threshold) <= 0.1;
+    });
+    const status: ActionPlan["status"] = hasBreach ? "fail" : nearLimit || externalContext ? "warning" : "pass";
+    const subject =
+      status === "fail"
+        ? `${ticker}: Potential covenant default follow-up`
+        : status === "warning"
+          ? `${ticker}: Covenant cushion clarification request`
+          : `${ticker}: Covenant monitoring follow-up`;
+
+    return {
+      status,
+      creditOfficerSummary:
+        status === "fail"
+          ? "Potential breach detected. Review citations, confirm borrower-provided compliance certificate, and prepare notice language."
+          : status === "warning"
+            ? "Covenant appears close to the threshold or has external context requiring human review."
+            : "No immediate covenant issue detected from current extracted values; keep monitoring for new 8-K events.",
+      emailDraft: {
+        subject,
+        body: [
+          `Hello,`,
+          ``,
+          `We are reviewing ${ticker}'s latest covenant compliance materials and would appreciate clarification on the items below.`,
+          `Please provide supporting schedules, current debt balances, and any updates since the latest SEC filing.`,
+          ``,
+          `Regards,`,
+          `Credit Monitoring Team`
+        ].join("\n")
+      },
+      borrowerQuestions: [
+        "Can you provide the latest compliance certificate and covenant calculation workbook?",
+        "Have there been any debt issuances, repayments, refinancing events, or amendments since the latest filing date?",
+        "Which adjustments were included in Adjusted EBITDA, and where are they supported in the financial statements?"
+      ],
+      dashboardConfig: {
+        charts: [
+          { id: "debt-ebitda-trend", title: "Debt to EBITDA Trend", type: "line", dataKey: "debtToEbitda" },
+          { id: "covenant-cushion", title: "Covenant Cushion", type: "ratio", dataKey: "covenantCushion" },
+          { id: "stress-projection", title: "Two-Quarter Stress Projection", type: "bar", dataKey: "stressProjection" }
+        ]
+      }
+    };
   }
 
   private async scanCreditAgreement(creditAgreementUrl: string) {
