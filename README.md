@@ -1,275 +1,125 @@
 # Solveo
 
-Solveo is a customer support agent platform for hotels. Guests can contact the hotel through WhatsApp, Telegram, or voice notes, and an AI agent answers common questions, collects requests, and escalates conversations to hotel staff when needed.
+Solveo is an agentic guest-relations and complaint-resolution platform for hotels and short-term rentals. The current demo focuses on policy-bound complaint adjudication: complaints from email, SMS, reviews, front desk notes, WhatsApp, and voicemail land in one inbox, then an AI agent investigates the claim, checks supporting evidence, adjudicates the case, drafts the response, creates follow-up work, and appends a cited decision to an operations board.
 
-The product has four main parts:
+The broader product goal is to reduce front-desk workload while keeping hotel staff in control of sensitive, unresolved, or low-confidence guest conversations. Solveo is designed to support routine guest messaging through familiar channels such as WhatsApp and Telegram, voice-note handling, staff oversight, and hotel-specific knowledge retrieval.
 
-1. Guest messaging experience through WhatsApp and Telegram
-2. Voice-note handling for guests who prefer speaking
-3. Hotel dashboard for monitoring chats, questions, and escalations
-4. Public landing page explaining and selling the product to hotels
+## What Solveo Handles
 
-## Product Goal
+- Unified guest complaint inbox across email, SMS, reviews, front desk notes, WhatsApp, and voicemail
+- Explicit investigation traces with planning, tool calls, evidence retrieval, adjudication, and actions
+- Booking, maintenance, policy, guest-history, and attachment evidence
+- Image verification through Vultr vision when configured, with caption sidecars for deterministic demos
+- Policy-bound compensation decisions with citations
+- Draft guest responses, generated tickets, operations-board decisions, and pattern alerts
+- Deterministic local demo fallbacks when live provider keys are not configured
 
-Hotels receive many repeated guest questions about check-in, breakfast, parking, spa access, room service, local recommendations, and policies. Solveo should reduce front-desk workload while keeping staff in control of sensitive or unresolved conversations.
+## Setup
 
-The system should:
+1. Copy `.env.example` to `.env` and add Vultr or Gradium keys if you have them.
+2. Run `make install`.
+3. Run `make dev`.
+4. Open `http://localhost:3000`.
+5. Run `make test` for the backend smoke tests.
 
-- Answer guest questions automatically using hotel-specific knowledge
-- Support both text messages and voice notes
-- Work through familiar channels like WhatsApp and Telegram
-- Let hotel staff see all AI conversations in one dashboard
-- Highlight unanswered questions, escalations, and common topics
-- Make it easy for hotels to update their information
+Docker alternative:
 
-## Core User Flows
+```bash
+docker compose up
+```
 
-### Guest Flow
+If Vultr keys are not present, the single LLM client in `backend/app/services/llm.py` uses deterministic demo fallbacks. If Gradium is not configured, voicemail upload and text-to-speech controls are hidden.
 
-1. Guest sends a WhatsApp or Telegram message to the hotel.
-2. The message is received by Solveo through a channel webhook.
-3. If the message is a voice note, it is transcribed first.
-4. The AI agent checks the hotel knowledge base and conversation context.
-5. The agent replies in the same channel.
-6. If the request needs human help, the conversation is escalated to hotel staff.
+## Environment
 
-### Hotel Staff Flow
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VULTR_API_KEY` | For live LLM | API key for Vultr Serverless Inference. |
+| `VULTR_BASE_URL` | For live LLM | OpenAI-compatible Vultr endpoint. |
+| `VULTR_CHAT_MODEL` | For live LLM | Chat model for planning, adjudication, and responses. |
+| `VULTR_EMBED_MODEL` | For live retrieval | Embedding model for policy retrieval. |
+| `VULTR_DEMO_MODE` | No | Set `true` to force deterministic local demo mode. |
+| `RETRIEVER_MODE` | No | `vultr` by default; use `fallback` for BM25 policy retrieval. |
+| `GRADIUM_API_KEY` | For voice | Enables STT voicemail intake and TTS playback. |
+| `GRADIUM_BASE_URL` | For voice | Gradium API base URL. |
+| `GRADIUM_STT_MODEL` | For voice | Gradium speech-to-text model. |
+| `GRADIUM_TTS_MODEL` | For voice | Gradium text-to-speech model. |
+| `DATABASE_PATH` | No | SQLite path. Defaults to the bundled local database under `backend/`. |
+| `NEXT_PUBLIC_API_URL` | Yes | Frontend URL for the FastAPI backend. |
 
-1. Staff logs into the hotel dashboard.
-2. Staff sees active conversations, resolved conversations, and escalated chats.
-3. Staff can inspect full chat history between the guest and AI agent.
-4. Staff can take over a conversation when needed.
-5. Staff can review common questions and gaps in the AI knowledge base.
+## Demo Script
 
-### Sales Flow
+1. Open the inbox. The two hero messages are pinned with a `Hero` badge.
+2. Click `AC broken all night, demand full refund`.
+3. Watch the trace populate: plan, booking lookup, maintenance retrieval, policy search, guest history, compensation calculation, adjudication, and actions.
+4. Confirm the decision is `legitimate`, confidence is high, compensation is `$216.00`, and policy section `4.2` is cited.
+5. Return to the inbox and click `Review: mold and filth in bathroom`.
+6. Confirm the vision step uses the caption stub if no Vultr vision model is configured, identifies a dry water stain, cites same-day cleaning records and serial-refund escalation policy, declines compensation, and escalates.
+7. Open Ops. The floor-3 HVAC pattern alert appears from the maintenance log, and completed case decisions are ranked by severity.
 
-1. A hotel manager visits the landing page.
-2. They understand what Solveo does and which channels it supports.
-3. They request a demo or sign up.
-4. A new hotel workspace is created and configured.
+## Architecture
 
-## Proposed Repository Structure
+- Frontend: Next.js 14 App Router, TypeScript, Tailwind, lucide icons.
+- Backend: FastAPI, SQLite, typed tools, explicit agent stages.
+- Retrieval: `Retriever` interface with Vultr embeddings by default and BM25 fallback.
+- Voice: Gradium STT/TTS routes, hidden in the UI unless `GRADIUM_API_KEY` is set.
+- State: SQLite tables for inbox, cases, trace events, generated tickets, ops decisions, and alerts.
+
+Agent stages are intentionally separate:
+
+1. `planner.py` creates a JSON investigation plan.
+2. `investigator.py` executes typed tools and can add an operations-policy hop when a cluster appears.
+3. `vision.py` checks attachments through Vultr vision or caption sidecars.
+4. `adjudicator.py` emits strict JSON with verdict, confidence, reasoning, compensation, escalation, and citations.
+5. `actions.py` drafts the response, creates tickets, and updates the ops board.
+
+## Repository Layout
 
 ```text
-solveo/
+Solveo/
   README.md
-  LICENSE
+  Makefile
+  docker-compose.yml
+  .env.example
 
-  apps/
-    landing/
-      # Public marketing website for hotel customers
+  backend/
+    app/
+      agent/        # Planning, investigation, adjudication, actions, and runner
+      retrieval/    # Vultr embedding retrieval and BM25 fallback
+      routes/       # FastAPI routes for inbox, cases, ops, and voice
+      services/     # LLM client and provider integrations
+      tools/        # Booking, policy, maintenance, vision, guest-history, compensation tools
+    tests/          # Backend smoke tests
 
-    dashboard/
-      # Hotel-facing web platform for chats, analytics, and settings
+  frontend/
+    app/            # Next.js app routes and dashboard screens
+    components/     # Case, citation, decision, and channel UI components
+    lib/            # API client helpers
 
-    api/
-      # Backend API, auth, hotel workspaces, webhooks, and agent orchestration
-
-  packages/
-    ai-agent/
-      # Prompting, tools, retrieval, escalation logic, and response generation
-
-    channels/
-      # WhatsApp, Telegram, and future messaging integrations
-
-    database/
-      # Database schema, migrations, seeds, and typed database client
-
-    shared/
-      # Shared types, validation schemas, config helpers, and constants
-
-  docs/
-    architecture.md
-    agent.md
-    integrations.md
-    data-model.md
+  seed/
+    inbox/          # Demo inbox messages
+    images/         # Demo evidence images and caption sidecars
+    policies/       # Compensation, evidence, escalation, and operations policies
 ```
 
-This structure keeps the public website, hotel dashboard, backend, and agent logic separate while still allowing shared types and utilities.
+## Product Direction
 
-## Main Components
+Solveo's current implementation centers on complaint resolution. The larger product direction keeps the original hotel support-agent vision:
 
-### Landing Page
+- Answer common guest questions using hotel-specific knowledge
+- Support text and voice-note interactions
+- Work through familiar channels such as WhatsApp and Telegram
+- Let hotel staff review conversations, escalations, and unresolved issues in one dashboard
+- Highlight repeated topics, evidence gaps, and operations patterns
+- Make it easy for hotels to update policies, amenities, and knowledge-base content
 
-The landing page is the public-facing website for hotels.
-
-Initial sections:
-
-- Hero explaining the hotel AI support agent
-- WhatsApp, Telegram, and voice-note support
-- Dashboard preview
-- Use cases such as check-in, amenities, policies, and local recommendations
-- Demo request or signup call to action
-
-### Hotel Dashboard
-
-The dashboard is the operational platform for hotel staff.
-
-Initial features:
-
-- Conversation inbox
-- AI-handled, escalated, and resolved chat filters
-- Chat detail view with guest messages and AI replies
-- Staff takeover option
-- Question analytics and repeated topics
-- Knowledge base management
-- Channel connection settings
-
-### Backend API
-
-The backend coordinates users, hotels, messaging webhooks, conversations, and the AI agent.
-
-Initial responsibilities:
-
-- Receive WhatsApp and Telegram webhooks
-- Normalize incoming messages into one internal format
-- Store conversations and messages
-- Send messages back through the correct channel
-- Trigger speech-to-text for voice notes
-- Call the AI agent package
-- Manage auth, hotel workspaces, and permissions
-
-### AI Agent
-
-The AI agent answers guests using hotel-specific information and conversation context.
-
-Initial responsibilities:
-
-- Understand guest intent
-- Retrieve hotel-specific knowledge
-- Generate concise replies
-- Ask follow-up questions when needed
-- Detect when human escalation is required
-- Produce structured metadata such as topic, confidence, and escalation reason
-
-Example escalation cases:
-
-- Payment or refund disputes
-- Complaints requiring staff attention
-- Medical or safety emergencies
-- Booking changes that need system access
-- Low-confidence answers
-
-### Messaging Channels
-
-Solveo should support channel-specific integrations behind one shared interface.
-
-Initial channels:
-
-- WhatsApp Business Platform
-- Telegram Bot API
-
-Future channels:
-
-- Website chat widget
-- Email
-- Instagram direct messages
-
-## Suggested Data Model
-
-Core entities:
-
-- `Hotel`: hotel workspace and business settings
-- `User`: dashboard user account
-- `Guest`: external guest identity from WhatsApp, Telegram, or another channel
-- `Conversation`: one support thread between a guest and hotel
-- `Message`: individual guest, AI, or staff message
-- `KnowledgeArticle`: hotel-specific source of truth for AI replies
-- `Escalation`: record of a conversation needing human attention
-- `ChannelConnection`: WhatsApp, Telegram, or future channel configuration
-
-## AI Agent Inputs and Outputs
-
-### Input
-
-```json
-{
-  "hotelId": "hotel_123",
-  "conversationId": "conv_123",
-  "channel": "whatsapp",
-  "messageType": "text",
-  "messageText": "What time is breakfast?",
-  "guestLanguage": "en",
-  "conversationHistory": [],
-  "hotelKnowledge": []
-}
-```
-
-### Output
-
-```json
-{
-  "reply": "Breakfast is served daily from 7:00 to 10:30 in the main restaurant.",
-  "topic": "breakfast",
-  "confidence": 0.94,
-  "shouldEscalate": false,
-  "escalationReason": null
-}
-```
-
-## Implementation Phases
-
-### Phase 1: Foundation
-
-- Create backend API
-- Create database schema
-- Add hotel workspace model
-- Add conversation and message storage
-- Add basic dashboard shell
-- Add first landing page
-
-### Phase 2: Messaging MVP
-
-- Add Telegram bot integration
-- Add WhatsApp webhook integration
-- Normalize incoming messages
-- Send outbound replies
-- Store full chat history
-
-### Phase 3: AI Agent MVP
-
-- Add AI response generation
-- Add hotel knowledge base retrieval
-- Add escalation detection
-- Add topic tagging and confidence scores
-- Show AI conversations in dashboard
-
-### Phase 4: Voice Notes
-
-- Download voice notes from supported channels
-- Transcribe audio to text
-- Pass transcription to AI agent
-- Store original audio metadata and transcription
-- Display voice-note messages in the dashboard
-
-### Phase 5: Hotel Operations
-
-- Add staff takeover
-- Add conversation assignment
-- Add resolved and archived states
-- Add analytics for common questions
-- Add knowledge base gap detection
-
-## Open Technical Decisions
-
-- Frontend framework for landing page and dashboard
-- Backend framework and hosting provider
-- Database provider
-- Authentication provider
-- WhatsApp provider: direct Meta API or provider such as Twilio
-- Speech-to-text provider
-- Vector database or retrieval strategy for hotel knowledge
-- Multi-language support strategy
+Future channel and product expansion can include a website chat widget, email ingestion, Instagram direct messages, staff takeover, conversation assignment, knowledge-base management, analytics, and a public landing page for hotel demo requests.
 
 ## Development Principles
 
-- Keep guest messaging reliable before adding advanced automation
-- Store complete conversation history for auditability
-- Make AI actions visible to hotel staff
-- Escalate uncertain or sensitive cases instead of forcing an answer
-- Keep channel integrations behind a common interface
-- Treat each hotel as a separate workspace with isolated data
-
-## Current Status
-
-This repository currently contains the initial planning README. The next step is to choose the technical stack and scaffold the first application structure.
+- Keep guest messaging reliable before adding advanced automation.
+- Store complete conversation history and case evidence for auditability.
+- Make AI decisions and tool calls visible to hotel staff.
+- Escalate uncertain or sensitive cases instead of forcing an answer.
+- Keep channel integrations behind a shared interface.
+- Treat each hotel as a separate workspace with isolated data.
