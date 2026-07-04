@@ -85,6 +85,35 @@ export type SecCompany = {
   title: string;
 };
 
+export type SecRecentFiling = {
+  accessionNumber: string;
+  cik: number;
+  ticker: string;
+  companyName: string;
+  form: string;
+  filingDate: string;
+  reportDate: string | null;
+  primaryDocument: string;
+  primaryDocumentUrl: string;
+  filingDirectoryUrl: string;
+};
+
+export type SecFilingDocument = {
+  accessionNumber: string;
+  cik: number;
+  name: string;
+  type: string;
+  size: number | null;
+  url: string;
+  isExhibit101: boolean;
+};
+
+export type ExhibitDiscovery = {
+  company: SecCompany;
+  filings: SecRecentFiling[];
+  exhibitCandidates: SecFilingDocument[];
+};
+
 export type AuditRunResult = {
   thoughts: AuditThought[];
   rulebook: CovenantRulebook;

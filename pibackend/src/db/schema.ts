@@ -23,5 +23,51 @@ export const syncState = sqliteTable("sync_state", {
   updatedAt: text("updated_at").notNull()
 });
 
+export const secFilings = sqliteTable(
+  "sec_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    cik: integer("cik").notNull(),
+    ticker: text("ticker").notNull(),
+    companyName: text("company_name").notNull(),
+    form: text("form").notNull(),
+    filingDate: text("filing_date").notNull(),
+    reportDate: text("report_date"),
+    primaryDocument: text("primary_document").notNull(),
+    primaryDocumentUrl: text("primary_document_url").notNull(),
+    filingDirectoryUrl: text("filing_directory_url").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    cikIndex: index("sec_filings_cik_idx").on(table.cik),
+    tickerIndex: index("sec_filings_ticker_idx").on(table.ticker),
+    formIndex: index("sec_filings_form_idx").on(table.form),
+    filingDateIndex: index("sec_filings_filing_date_idx").on(table.filingDate)
+  })
+);
+
+export const secFilingDocuments = sqliteTable(
+  "sec_filing_documents",
+  {
+    id: text("id").primaryKey(),
+    accessionNumber: text("accession_number").notNull(),
+    cik: integer("cik").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    size: integer("size"),
+    url: text("url").notNull(),
+    isExhibit101: integer("is_exhibit_10_1").notNull().default(0),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    accessionIndex: index("sec_filing_documents_accession_idx").on(table.accessionNumber),
+    exhibitIndex: index("sec_filing_documents_exhibit_10_1_idx").on(table.isExhibit101)
+  })
+);
+
 export type SecCompanyTicker = typeof secCompanyTickers.$inferSelect;
 export type NewSecCompanyTicker = typeof secCompanyTickers.$inferInsert;
+export type SecFiling = typeof secFilings.$inferSelect;
+export type NewSecFiling = typeof secFilings.$inferInsert;
+export type SecFilingDocument = typeof secFilingDocuments.$inferSelect;
+export type NewSecFilingDocument = typeof secFilingDocuments.$inferInsert;

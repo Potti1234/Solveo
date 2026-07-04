@@ -33,14 +33,18 @@ Useful endpoints:
 - `POST /api/audits/run`
 - `GET /api/sec/tickers/search?q=apple`
 - `GET /api/sec/tickers/AAPL`
+- `GET /api/sec/filings/AAPL/exhibits/10-1`
 - `POST /api/sec/tickers/sync`
 
 Ticker cache:
 
 ```bash
 bun run db:sync-tickers
+bun run sec:discover-exhibits AAPL
 ```
 
 The SEC ticker cache is stored in `pibackend/vultr_audit.db` unless `DATABASE_PATH` is set. The agent uses this cache as its first lookup step to normalize ticker input to SEC CIK/company metadata before planning filing retrieval.
+
+SEC requests include `SEC_USER_AGENT`. Set it to a real project/contact string before production use.
 
 The service reads the root `.env` file for Vultr settings. When `VULTR_API_KEY` is set and `VULTR_DEMO_MODE` is not true, reasoning calls use the configured Vultr inference endpoint. Without a live key, deterministic placeholders keep the backend usable during local development.

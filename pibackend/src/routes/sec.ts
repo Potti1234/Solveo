@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { resolveCompanyTicker, searchCompanyTickers, syncCompanyTickers } from "../services/sec";
+import { discoverCreditAgreementExhibits, resolveCompanyTicker, searchCompanyTickers, syncCompanyTickers } from "../services/sec";
 
 export const secRoutes = new Elysia({ prefix: "/api/sec" })
   .get("/tickers/search", async ({ query, set }) => {
@@ -19,5 +19,8 @@ export const secRoutes = new Elysia({ prefix: "/api/sec" })
     }
 
     return { company };
+  })
+  .get("/filings/:ticker/exhibits/10-1", async ({ params, query }) => {
+    return discoverCreditAgreementExhibits(params.ticker, Number(query.limit ?? 20));
   })
   .post("/tickers/sync", async () => syncCompanyTickers());
