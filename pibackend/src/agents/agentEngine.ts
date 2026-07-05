@@ -3,11 +3,13 @@ import type {
   AuditRequest,
   AuditRunResult,
   AuditThought,
+  CreditMonitoringResult,
   CodeExecutionResult,
   ComplianceMemo,
   CovenantCalculation,
   CovenantRulebook,
   FilingPlan,
+  MonitoringScheduleRecommendation,
   RetrievalBlock,
   WebSearchResponse
 } from "../types";
@@ -97,13 +99,24 @@ export class AgentEngine {
     this.think("monitoring", "Running credit monitoring checks for 8-K events, headroom trend, amendments, and follow-up schedules.", {
       ticker: company?.ticker ?? request.ticker.toUpperCase()
     });
-    const creditMonitoring = await buildCreditMonitoring({
+    let creditMonitoring = await buildCreditMonitoring({
       ticker: request.ticker,
       company,
       creditAgreementUrl,
       rulebook,
       calculations
     });
+    const scheduleRecommendations = await this.planFollowUpAgents({
+      ticker: company?.ticker ?? request.ticker.toUpperCase(),
+      creditAgreementUrl,
+      calculations,
+      externalContext,
+      creditMonitoring
+    });
+    creditMonitoring = {
+      ...creditMonitoring,
+      scheduleRecommendations
+    };
     this.think("monitoring", "Completed credit monitoring expansion.", {
       earlyWarning: creditMonitoring.earlyWarning,
       materialEventCount: creditMonitoring.materialEvents.length,
@@ -268,6 +281,54 @@ export class AgentEngine {
         ]
       }
     };
+  }
+
+  private async planFollowUpAgents(input: {
+    ticker: string;
+    creditAgreementUrl: string | null;
+    calculations: CovenantCalculation[];
+    externalContext: WebSearchResponse | null;
+    creditMonitoring: CreditMonitoringResult;
+  }): Promise<MonitoringScheduleRecommendation[]> {
+    this.think("monitoring", "Deciding whether follow-up agents are needed for this run.", {
+      ticker: input.ticker,
+      earlyWarning: input.creditMonitoring.earlyWarning,
+      materialEventCount: input.creditMonitoring.materialEvents.length,
+      headroomDirection: input.creditMonitoring.headroomTrend.direction,
+      hasExternalContext: Boolean(input.externalContext)
+    });
+
+    const plan = await llmClient.chatJson(
+      [
+        {
+          role: "system",
+          content:
+            "You are the main credit monitoring agent. Decide whether to create background follow-up agents after a covenant review. Return strict JSON with schedules only when the evidence justifies follow-up work. Do not create default or placeholder schedules. Valid kinds: audit_rescan, sec_8k_scan, web_news_scan, amendment_scan. cadenceMinutes and runAt must match the urgency. Each reason must cite the risk signal that caused the schedule."
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            ticker: input.ticker,
+            creditAgreementUrl: input.creditAgreementUrl,
+            calculations: input.calculations,
+            externalContext: input.externalContext,
+            materialEvents: input.creditMonitoring.materialEvents,
+            headroomTrend: input.creditMonitoring.headroomTrend,
+            earlyWarning: input.creditMonitoring.earlyWarning,
+            amendmentComparison: input.creditMonitoring.amendmentComparison
+          })
+        }
+      ],
+      () => ({ schedules: fallbackFollowUpSchedules(input) }),
+      isFollowUpSchedulePlan
+    );
+
+    const schedules = normalizeFollowUpSchedules(plan.schedules, input);
+    this.think("monitoring", schedules.length ? "Created follow-up agents from monitoring decision." : "No follow-up agents needed for this run.", {
+      scheduleCount: schedules.length,
+      schedules
+    });
+    return schedules;
   }
 
   private async scanCreditAgreement(creditAgreementUrl: string) {
@@ -474,5 +535,127 @@ function isFilingPlan(value: unknown): value is FilingPlan {
       plan.requiredLineItems.every((item) => typeof item === "string") &&
       Array.isArray(plan.retrievalQueries) &&
       plan.retrievalQueries.every((query) => typeof query === "string")
+  );
+}
+
+type FollowUpSchedulePlan = {
+  schedules: MonitoringScheduleRecommendation[];
+};
+
+function fallbackFollowUpSchedules(input: {
+  ticker: string;
+  creditAgreementUrl: string | null;
+  calculations: CovenantCalculation[];
+  externalContext: WebSearchResponse | null;
+  creditMonitoring: CreditMonitoringResult;
+}): MonitoringScheduleRecommendation[] {
+  const schedules: MonitoringScheduleRecommendation[] = [];
+  const nowMs = Date.now();
+  const hasBreach = input.calculations.some((calculation) => !calculation.compliant);
+  const nearLimit = input.calculations.some((calculation) => {
+    if (calculation.threshold === 0 || calculation.actual <= 0) return false;
+    return Math.abs(calculation.threshold - calculation.actual) / Math.abs(calculation.threshold) <= 0.1;
+  });
+  const materialDebtEvent = input.creditMonitoring.materialEvents.some((event) =>
+    ["credit_agreement", "debt_financing", "default", "liquidity"].includes(event.category)
+  );
+  const elevatedRisk = ["medium", "high", "critical"].includes(input.creditMonitoring.earlyWarning.level);
+
+  if (hasBreach || nearLimit || materialDebtEvent || input.externalContext) {
+    schedules.push({
+      kind: "sec_8k_scan",
+      cadenceMinutes: hasBreach || input.creditMonitoring.earlyWarning.level === "critical" ? 6 * 60 : 24 * 60,
+      runAt: new Date(nowMs + (hasBreach || input.creditMonitoring.earlyWarning.level === "critical" ? 6 : 24) * 60 * 60 * 1000).toISOString(),
+      reason: hasBreach
+        ? "Potential covenant breach requires near-term 8-K monitoring."
+        : materialDebtEvent
+          ? "Recent debt or credit-agreement event requires continued SEC event monitoring."
+          : "Risk signal found during the review requires event monitoring.",
+      input: { ticker: input.ticker }
+    });
+  }
+
+  if (hasBreach || nearLimit || input.creditMonitoring.headroomTrend.direction === "deteriorating") {
+    schedules.push({
+      kind: "audit_rescan",
+      cadenceMinutes: 7 * 24 * 60,
+      runAt: new Date(nowMs + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      reason: hasBreach
+        ? "Potential breach should be rechecked after the borrower provides updated support."
+        : nearLimit
+          ? "Covenant cushion is close enough to justify a full weekly rescan."
+          : "Deteriorating headroom trend justifies a full weekly rescan.",
+      input: { ticker: input.ticker, creditAgreementUrl: input.creditAgreementUrl }
+    });
+  }
+
+  if (input.creditMonitoring.earlyWarning.level === "high" || input.creditMonitoring.earlyWarning.level === "critical") {
+    schedules.push({
+      kind: "web_news_scan",
+      cadenceMinutes: input.creditMonitoring.earlyWarning.level === "critical" ? 15 : 60,
+      runAt: new Date(nowMs + (input.creditMonitoring.earlyWarning.level === "critical" ? 15 : 60) * 60 * 1000).toISOString(),
+      reason: `${input.creditMonitoring.earlyWarning.level} early-warning score warrants external news monitoring.`,
+      input: { query: `${input.ticker} debt refinancing covenant default liquidity credit agreement` }
+    });
+  }
+
+  if (materialDebtEvent || input.creditMonitoring.amendmentComparison?.changes.some((change) => change.direction === "tighter")) {
+    schedules.push({
+      kind: "amendment_scan",
+      cadenceMinutes: 24 * 60,
+      runAt: new Date(nowMs + 24 * 60 * 60 * 1000).toISOString(),
+      reason: "Debt financing or tighter covenant terms should be checked for follow-on amendments.",
+      input: { ticker: input.ticker, creditAgreementUrl: input.creditAgreementUrl }
+    });
+  }
+
+  return elevatedRisk ? schedules : schedules.filter((schedule) => schedule.kind !== "web_news_scan");
+}
+
+function normalizeFollowUpSchedules(
+  schedules: MonitoringScheduleRecommendation[],
+  input: {
+    ticker: string;
+    creditAgreementUrl: string | null;
+  }
+): MonitoringScheduleRecommendation[] {
+  const validKinds = new Set<MonitoringScheduleRecommendation["kind"]>(["audit_rescan", "sec_8k_scan", "web_news_scan", "amendment_scan"]);
+  const seen = new Set<string>();
+  return schedules
+    .filter((schedule) => validKinds.has(schedule.kind) && Number.isFinite(schedule.cadenceMinutes) && schedule.cadenceMinutes > 0)
+    .map((schedule) => ({
+      ...schedule,
+      runAt: Number.isNaN(new Date(schedule.runAt).getTime())
+        ? new Date(Date.now() + schedule.cadenceMinutes * 60 * 1000).toISOString()
+        : schedule.runAt,
+      reason: schedule.reason.trim() || "The main agent found a credit monitoring risk signal.",
+      input:
+        schedule.kind === "web_news_scan"
+          ? { query: String(schedule.input.query ?? `${input.ticker} debt covenant credit agreement`) }
+          : { ticker: input.ticker, creditAgreementUrl: input.creditAgreementUrl, ...schedule.input }
+    }))
+    .filter((schedule) => {
+      const key = schedule.kind;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function isFollowUpSchedulePlan(value: unknown): value is FollowUpSchedulePlan {
+  const plan = value as FollowUpSchedulePlan;
+  return Boolean(plan && Array.isArray(plan.schedules) && plan.schedules.every(isFollowUpSchedule));
+}
+
+function isFollowUpSchedule(value: unknown): value is MonitoringScheduleRecommendation {
+  const schedule = value as MonitoringScheduleRecommendation;
+  return Boolean(
+    schedule &&
+      ["audit_rescan", "sec_8k_scan", "web_news_scan", "amendment_scan"].includes(schedule.kind) &&
+      typeof schedule.cadenceMinutes === "number" &&
+      typeof schedule.runAt === "string" &&
+      typeof schedule.reason === "string" &&
+      schedule.input &&
+      typeof schedule.input === "object"
   );
 }

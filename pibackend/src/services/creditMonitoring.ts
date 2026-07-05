@@ -7,7 +7,6 @@ import type {
   CovenantHeadroomPoint,
   HeadroomTrend,
   MaterialEventSignal,
-  MonitoringScheduleRecommendation,
   SecCompany,
   SecRecentFiling
 } from "../types";
@@ -29,20 +28,13 @@ export async function buildCreditMonitoring(input: {
     compareCreditAgreementAmendments(ticker, input.creditAgreementUrl, input.company?.title ?? ticker)
   ]);
   const earlyWarning = scoreEarlyWarning(input.calculations, materialEvents, headroomTrend, amendmentComparison);
-  const scheduleRecommendations = recommendSchedules({
-    ticker,
-    creditAgreementUrl: input.creditAgreementUrl,
-    earlyWarning,
-    materialEvents,
-    headroomTrend
-  });
 
   return {
     materialEvents,
     headroomTrend,
     amendmentComparison,
     earlyWarning,
-    scheduleRecommendations
+    scheduleRecommendations: []
   };
 }
 
@@ -317,57 +309,6 @@ function scoreEarlyWarning(
     level: bounded >= 75 ? "critical" : bounded >= 50 ? "high" : bounded >= 25 ? "medium" : "low",
     drivers: drivers.length > 0 ? drivers : ["No major early-warning drivers identified from extracted evidence."]
   };
-}
-
-function recommendSchedules(input: {
-  ticker: string;
-  creditAgreementUrl: string | null;
-  earlyWarning: EarlyWarningScore;
-  materialEvents: MaterialEventSignal[];
-  headroomTrend: HeadroomTrend;
-}): MonitoringScheduleRecommendation[] {
-  const now = Date.now();
-  const schedules: MonitoringScheduleRecommendation[] = [
-    {
-      kind: "sec_8k_scan",
-      cadenceMinutes: 24 * 60,
-      runAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
-      reason: "Daily 8-K scan keeps the credit file current between quarterly filings.",
-      input: { ticker: input.ticker }
-    }
-  ];
-
-  if (input.earlyWarning.level === "medium" || input.headroomTrend.direction === "deteriorating") {
-    schedules.push({
-      kind: "audit_rescan",
-      cadenceMinutes: 7 * 24 * 60,
-      runAt: new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      reason: "Risk signals justify a full covenant rescan in one week.",
-      input: { ticker: input.ticker, creditAgreementUrl: input.creditAgreementUrl }
-    });
-  }
-
-  if (input.earlyWarning.level === "high" || input.earlyWarning.level === "critical") {
-    schedules.push({
-      kind: "web_news_scan",
-      cadenceMinutes: 15,
-      runAt: new Date(now + 15 * 60 * 1000).toISOString(),
-      reason: "High-risk credit signal warrants frequent external news monitoring.",
-      input: { query: `${input.ticker} debt refinancing covenant default liquidity credit agreement` }
-    });
-  }
-
-  if (input.materialEvents.some((event) => event.category === "credit_agreement" || event.category === "debt_financing")) {
-    schedules.push({
-      kind: "amendment_scan",
-      cadenceMinutes: 24 * 60,
-      runAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
-      reason: "Recent financing or credit-agreement event should be checked for new covenant amendments.",
-      input: { ticker: input.ticker, creditAgreementUrl: input.creditAgreementUrl }
-    });
-  }
-
-  return schedules;
 }
 
 function compareThresholdDirection(
