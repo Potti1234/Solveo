@@ -27,7 +27,7 @@ export class VultrInferenceClient {
     ""
   );
   private readonly reasoningModel =
-    process.env.VULTR_REASONING_MODEL ?? process.env.VULTR_CHAT_MODEL ?? "VultronRetrieverPrime-Qwen3.5-8B";
+    process.env.VULTR_REASONING_MODEL ?? process.env.VULTR_CHAT_MODEL ?? "deepseek-ai/DeepSeek-V4-Flash";
   private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "8000");
   private readonly localMode = ["1", "true", "yes"].includes((process.env.VULTR_LOCAL_MODE ?? "").toLowerCase());
 
