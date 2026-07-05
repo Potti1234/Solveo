@@ -7,10 +7,12 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "typecheck": "tsc --noEmit",
-    "db:seed": "bun src/scripts/seed.ts"
+    "db:sync-tickers": "bun src/scripts/syncSecTickers.ts",
+    "sec:discover-exhibits": "bun src/scripts/discoverSecExhibits.ts",
+    "audit:test-near-limit": "bun src/scripts/testAuditNearLimit.ts",
+    "audit:report": "bun src/scripts/runAuditReport.ts"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.80.3",
     "@elysiajs/cors": "1.3.3",
     "drizzle-orm": "0.44.2",
     "elysia": "1.3.5"

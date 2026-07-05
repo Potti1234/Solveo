@@ -1,79 +1,90 @@
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
-export const inboxMessages = sqliteTable("inbox_messages", {
-  id: text("id").primaryKey(),
-  receivedAt: text("received_at").notNull(),
-  channel: text("channel").notNull(),
-  sender: text("sender").notNull(),
-  guestName: text("guest_name").notNull(),
-  room: text("room"),
-  subject: text("subject").notNull(),
-  body: text("body").notNull(),
-  attachmentsJson: text("attachments_json").notNull().default("[]"),
-  status: text("status").notNull().default("new")
-});
-
-export const cases = sqliteTable("cases", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  messageId: text("message_id").notNull(),
-  status: text("status").notNull(),
-  verdict: text("verdict"),
-  confidence: real("confidence"),
-  reasoning: text("reasoning"),
-  compensationJson: text("compensation_json"),
-  responseDraft: text("response_draft"),
-  escalate: integer("escalate").notNull().default(0),
-  severity: integer("severity").notNull().default(1),
-  citationsJson: text("citations_json").notNull().default("[]"),
-  actionsJson: text("actions_json").notNull().default("[]"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`)
-});
-
-export const caseEvents = sqliteTable("case_events", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  caseId: integer("case_id").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  eventType: text("event_type").notNull(),
-  title: text("title").notNull(),
-  payloadJson: text("payload_json").notNull().default("{}")
-});
-
-export const generatedTickets = sqliteTable("generated_tickets", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  caseId: integer("case_id").notNull(),
-  room: text("room"),
-  location: text("location"),
-  issueType: text("issue_type").notNull(),
-  status: text("status").notNull().default("open"),
-  summary: text("summary").notNull(),
-  severity: text("severity").notNull().default("medium"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
-});
-
-export const opsBoard = sqliteTable("ops_board", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  caseId: integer("case_id").notNull().unique(),
-  severity: integer("severity").notNull(),
-  verdict: text("verdict").notNull(),
-  summary: text("summary").notNull(),
-  citationsJson: text("citations_json").notNull().default("[]"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
-});
-
-export const opsAlerts = sqliteTable(
-  "ops_alerts",
+export const secCompanyTickers = sqliteTable(
+  "sec_company_tickers",
   {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    issueType: text("issue_type").notNull(),
-    location: text("location").notNull(),
-    count: integer("count").notNull(),
-    severity: text("severity").notNull(),
-    summary: text("summary").notNull(),
-    citationsJson: text("citations_json").notNull().default("[]"),
-    status: text("status").notNull().default("active"),
-    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`)
+    cik: integer("cik").primaryKey(),
+    cikPadded: text("cik_padded").notNull(),
+    ticker: text("ticker").notNull(),
+    title: text("title").notNull(),
+    source: text("source").notNull().default("sec-company-tickers"),
+    updatedAt: text("updated_at").notNull()
   },
-  (table) => [uniqueIndex("ops_alerts_issue_location_idx").on(table.issueType, table.location)]
+  (table) => ({
+    tickerUnique: uniqueIndex("sec_company_tickers_ticker_unique").on(table.ticker),
+    tickerIndex: index("sec_company_tickers_ticker_idx").on(table.ticker),
+    titleIndex: index("sec_company_tickers_title_idx").on(table.title)
+  })
 );
+
+export const syncState = sqliteTable("sync_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const secFilings = sqliteTable(
+  "sec_filings",
+  {
+    accessionNumber: text("accession_number").primaryKey(),
+    cik: integer("cik").notNull(),
+    ticker: text("ticker").notNull(),
+    companyName: text("company_name").notNull(),
+    form: text("form").notNull(),
+    filingDate: text("filing_date").notNull(),
+    reportDate: text("report_date"),
+    primaryDocument: text("primary_document").notNull(),
+    primaryDocumentUrl: text("primary_document_url").notNull(),
+    filingDirectoryUrl: text("filing_directory_url").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    cikIndex: index("sec_filings_cik_idx").on(table.cik),
+    tickerIndex: index("sec_filings_ticker_idx").on(table.ticker),
+    formIndex: index("sec_filings_form_idx").on(table.form),
+    filingDateIndex: index("sec_filings_filing_date_idx").on(table.filingDate)
+  })
+);
+
+export const secFilingDocuments = sqliteTable(
+  "sec_filing_documents",
+  {
+    id: text("id").primaryKey(),
+    accessionNumber: text("accession_number").notNull(),
+    cik: integer("cik").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    size: integer("size"),
+    url: text("url").notNull(),
+    isExhibit101: integer("is_exhibit_10_1").notNull().default(0),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    accessionIndex: index("sec_filing_documents_accession_idx").on(table.accessionNumber),
+    exhibitIndex: index("sec_filing_documents_exhibit_10_1_idx").on(table.isExhibit101)
+  })
+);
+
+export const vultrDocumentCollections = sqliteTable(
+  "vultr_document_collections",
+  {
+    documentUrl: text("document_url").primaryKey(),
+    collectionId: text("collection_id").notNull(),
+    collectionName: text("collection_name").notNull(),
+    contentHash: text("content_hash").notNull(),
+    indexedAt: text("indexed_at").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => ({
+    collectionIndex: index("vultr_document_collections_collection_idx").on(table.collectionId)
+  })
+);
+
+export type SecCompanyTicker = typeof secCompanyTickers.$inferSelect;
+export type NewSecCompanyTicker = typeof secCompanyTickers.$inferInsert;
+export type SecFiling = typeof secFilings.$inferSelect;
+export type NewSecFiling = typeof secFilings.$inferInsert;
+export type SecFilingDocument = typeof secFilingDocuments.$inferSelect;
+export type NewSecFilingDocument = typeof secFilingDocuments.$inferInsert;
+export type VultrDocumentCollection = typeof vultrDocumentCollections.$inferSelect;
+export type NewVultrDocumentCollection = typeof vultrDocumentCollections.$inferInsert;

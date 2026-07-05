@@ -1,151 +1,175 @@
-# Solveo
+# Vultr-Audit
 
-Solveo is an agentic guest-relations and complaint-resolution platform for hotels and short-term rentals. The current demo focuses on policy-bound complaint adjudication: complaints from email, SMS, reviews, front desk notes, WhatsApp, and voicemail land in one inbox, then an AI agent investigates the claim, checks supporting evidence, adjudicates the case, drafts the response, creates follow-up work, and appends a cited decision to an operations board.
+Agentic financial compliance monitor for lender loan-covenant review.
 
-The broader product goal is to reduce front-desk workload while keeping hotel staff in control of sensitive, unresolved, or low-confidence guest conversations. Solveo is designed to support routine guest messaging through familiar channels such as WhatsApp and Telegram, voice-note handling, staff oversight, and hotel-specific knowledge retrieval.
+Vultr-Audit checks a borrower against credit-agreement covenants by combining SEC filings, Exhibit 10.1 credit agreements, Vultr Serverless Inference, Vultr Vector Store retrieval, deterministic financial calculations, code-execution verification, and an audit-ready explainability report.
 
-## What Solveo Handles
+## Current Scope
 
-## What Solveo Handles
+The current repo is backend-first. The frontend is intentionally deferred until the backend workflow is reliable.
 
-- Unified guest complaint inbox across email, SMS, reviews, front desk notes, WhatsApp, and voicemail
-- Explicit investigation traces with planning, tool calls, evidence retrieval, adjudication, and actions
-- Booking, maintenance, policy, guest-history, and attachment evidence
-- Image verification through Vultr vision when configured, with caption sidecars for deterministic demos
-- Policy-bound compensation decisions with citations
-- Draft guest responses, generated tickets, operations-board decisions, and pattern alerts
-- Deterministic local demo fallbacks when live provider keys are not configured
+Implemented:
 
-> **Note:** This README contains both the product vision and current implementation details. The repository structure section below describes a proposed ideal architecture, but the actual codebase may differ. **Developers should add features to the current code structure without worrying about matching the proposed layout**—the README will be updated as the architecture evolves.
+- SEC ticker cache in SQLite from `company_tickers.json`.
+- SEC submissions lookup from `data.sec.gov/submissions/CIK##########.json`.
+- Exhibit 10.1 discovery from recent 8-K / 10-K filing directories.
+- Vultr OpenAI-compatible chat client.
+- Vultr Vector Store document indexing and semantic retrieval.
+- Covenant keyword scan for credit agreements.
+- Vultr-first SEC filing extraction for debt, EBITDA, interest coverage, liquidity, and related evidence, with deterministic local parsing only as an offline fallback.
+- Covenant ratio calculator.
+- Python/TypeScript `execute_code` tool.
+- Two script-backed checks: math verification and two-quarter stress projection.
+- Self-check retrieval for subsequent events and liquidity/debt discussion.
+- Optional SearXNG web search for live external context.
+- Explainability report with documents, tool calls, evidence trail, calculation trail, code verification, decision trail, and caveats.
+- Credit monitoring expansion with recent 8-K material-event scan, covenant headroom trend, credit-agreement amendment comparison, early-warning score, and background schedule recommendations.
 
-## Product Goal
+## Verified Run Target
 
-## Setup
+One known working end-to-end run is:
 
-1. Install [Bun](https://bun.sh/) and Node.js 20+.
-2. Copy `.env.example` to `.env` and add Vultr or Gradium keys if you have them.
-3. Run `npm run install:all`.
-4. Run `npm run dev`.
-5. Open the URL printed by Next, normally `http://localhost:3000`.
-
-`npm run dev` starts both local development servers with hot reload:
-
-- Pi backend: `http://localhost:8001` via `bun --watch`
-- Next frontend: `http://localhost:3000` via `next dev`, or the next available port if 3000 is already in use
-
-The frontend defaults to `http://localhost:8001`. Override it with `NEXT_PUBLIC_API_URL` if you want to point at another backend.
-
-Run `make test` for the Python backend smoke tests.
-
-Docker alternative:
-
-```bash
-docker compose up
+```text
+Ticker: MCK
+Company: McKesson Corp
+Credit agreement: Exhibit 10.1 term loan agreement
+SEC filing: latest available 10-Q
 ```
 
-TypeScript Pi backend only:
+Use the real credit agreement URL as input. The backend extracts the covenant threshold and financial values from the linked SEC documents at run time.
+
+CLI:
 
 ```bash
 cd pibackend
 bun install
+bun run db:sync-tickers
+bun run audit:report MCK https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm
+```
+
+API:
+
+```bash
+curl -X POST http://localhost:8001/api/audits/report \
+  -H "Content-Type: application/json" \
+  -d '{"ticker":"MCK","creditAgreementUrl":"https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm"}'
+```
+
+## Backend
+
+```bash
+cd pibackend
 bun run dev
 ```
 
-Then point the frontend at `http://localhost:8001` with `NEXT_PUBLIC_API_URL=http://localhost:8001`. This second backend uses Elysia endpoints, Drizzle with SQLite, Pi-compatible tool wrappers, and the existing seed data.
+Default API URL:
 
-If Vultr keys are not present, the single LLM client in `backend/app/services/llm.py` uses deterministic demo fallbacks. If Gradium is not configured, voicemail upload and text-to-speech controls are hidden.
+```text
+http://localhost:8001
+```
 
-## Environment
+Key endpoints:
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `VULTR_API_KEY` | For live LLM/retrieval | API key for Vultr Serverless Inference. |
-| `VULTR_BASE_URL` | For live LLM/retrieval | OpenAI-compatible Vultr endpoint. Defaults to `https://api.vultrinference.com/v1`. |
-| `VULTR_CHAT_MODEL` | For live LLM | Chat model for planning, adjudication, and responses. |
-| `VULTR_RETRIEVER_MODEL` | For live retrieval | VultronRetriever model for `/rerank` policy retrieval. Defaults to `vultr/VultronRetrieverFlash-Qwen3.5-0.8B`. |
-| `VULTR_DEMO_MODE` | No | Set `true` to force deterministic local demo mode. |
-| `RETRIEVER_MODE` | No | `vultr` by default; use `fallback` for BM25 policy retrieval. |
-| `GRADIUM_API_KEY` | For voice | Enables STT voicemail intake and TTS playback. |
-| `GRADIUM_BASE_URL` | For voice | Gradium REST API base URL. Defaults to `https://api.gradium.ai/api`. |
-| `GRADIUM_STT_MODEL` | For voice | Gradium speech-to-text model. Defaults to `default`. |
-| `GRADIUM_TTS_VOICE_ID` | For voice | Gradium voice ID used for response playback. |
-| `GRADIUM_TTS_FORMAT` | For voice | Gradium TTS audio format. Defaults to `wav`. |
-| `DATABASE_PATH` | No | SQLite path. Defaults to the bundled local database under `backend/`. |
-| `NEXT_PUBLIC_API_URL` | Yes | Frontend URL for the FastAPI backend. |
-
-## Demo Script
-
-1. Open the inbox. The two hero messages are pinned with a `Hero` badge.
-2. Click `AC broken all night, demand full refund`.
-3. Watch the trace populate: plan, booking lookup, maintenance retrieval, policy search, guest history, compensation calculation, adjudication, and actions.
-4. Confirm the decision is `legitimate`, confidence is high, compensation is `$216.00`, and policy section `4.2` is cited.
-5. Return to the inbox and click `Review: mold and filth in bathroom`.
-6. Confirm the vision step uses the caption stub if no Vultr vision model is configured, identifies a dry water stain, cites same-day cleaning records and serial-refund escalation policy, declines compensation, and escalates.
-7. Open Ops. The floor-3 HVAC pattern alert appears from the maintenance log, and completed case decisions are ranked by severity.
+- `GET /api/health`
+- `GET /api/runtime`
+- `POST /api/audits/run`
+- `POST /api/audits/report`
+- `POST /api/tools/execute-code`
+- `POST /api/tools/web-search`
+- `POST /api/what-if/run`
+- `GET /api/sec/tickers/:ticker`
+- `GET /api/sec/filings/:ticker/exhibits/10-1`
 
 ## Architecture
 
-- Frontend: Next.js 14 App Router, TypeScript, Tailwind, lucide icons.
-- Backend: FastAPI, SQLite, typed tools, explicit agent stages.
-- Retrieval: `Retriever` interface with VultronRetriever rerank on Vultr Serverless Inference by default and BM25 fallback.
-- Voice: Gradium STT/TTS REST routes, hidden in the UI unless `GRADIUM_API_KEY` is set.
-- State: SQLite tables for inbox, cases, trace events, generated tickets, ops decisions, and alerts.
+This is a structured agentic workflow rather than a free-form chatbot.
 
-Agent stages are intentionally separate:
+The backend controls the audit sequence:
 
-1. `planner.py` creates a JSON investigation plan.
-2. `investigator.py` executes typed tools and can add an operations-policy hop when a cluster appears.
-3. `vision.py` checks attachments through Vultr vision or caption sidecars.
-4. `adjudicator.py` emits strict JSON with verdict, confidence, reasoning, compensation, escalation, and citations.
-5. `actions.py` drafts the response, creates tickets, and updates the ops board.
+1. Resolve SEC ticker and CIK.
+2. Discover a credit agreement exhibit.
+3. Scan covenant keywords in the agreement.
+4. Extract or select a covenant rulebook.
+5. Plan SEC filing retrieval.
+6. Retrieve financial evidence with Vultr Vector Store.
+7. Extract line items and compute covenant ratios.
+8. Run Python scripts to verify math and project stress risk.
+9. Perform reflective retrieval for contradictory evidence.
+10. Scan recent 8-Ks for credit-relevant events.
+11. Estimate covenant headroom trend across recent filings when enough data can be extracted.
+12. Compare recent credit agreement amendments when prior agreements are available.
+13. Recommend follow-up schedules for rescans, 8-K checks, amendment checks, or high-frequency news monitoring.
+14. Produce action plan and explainability report.
 
-## Repository Layout
+The LLM participates inside bounded steps for extraction and planning. Tools are explicit and auditable.
 
-```text
-Solveo/
-  README.md
-  Makefile
-  docker-compose.yml
-  .env.example
+## Background Agent Format
 
-  backend/
-    app/
-      agent/        # Planning, investigation, adjudication, actions, and runner
-      retrieval/    # VultronRetriever rerank retrieval and BM25 fallback
-      routes/       # FastAPI routes for inbox, cases, ops, and voice
-      services/     # LLM client and provider integrations
-      tools/        # Booking, policy, maintenance, vision, guest-history, compensation tools
-    tests/          # Backend smoke tests
+The backend does not run long-lived scheduled jobs yet. Instead, each audit returns `creditMonitoring.scheduleRecommendations` as structured job proposals:
 
-  frontend/
-    app/            # Next.js app routes and dashboard screens
-    components/     # Case, citation, decision, and channel UI components
-    lib/            # API client helpers
-
-  seed/
-    inbox/          # Demo inbox messages
-    images/         # Demo evidence images and caption sidecars
-    policies/       # Compensation, evidence, escalation, and operations policies
+```json
+{
+  "kind": "web_news_scan",
+  "cadenceMinutes": 15,
+  "runAt": "2026-07-05T12:15:00.000Z",
+  "reason": "High-risk credit signal warrants frequent external news monitoring.",
+  "input": {
+    "query": "MCK debt refinancing covenant default liquidity credit agreement"
+  }
+}
 ```
 
-## Product Direction
+The UI or a worker process can persist these recommendations, execute them later, and attach Telegram/email notification rules.
 
-Solveo's current implementation centers on complaint resolution. The larger product direction keeps the original hotel support-agent vision:
+For extraction experiments, `ENABLE_VECTOR_INDEXING=true`, `ENABLE_DIRECT_LLM_EXTRACTION=true`, `ENABLE_SLOW_COVENANT_RAG=true`, and `ENABLE_COVENANT_REFINEMENT=true` enable additional remote extraction passes. They are disabled by default because they can add latency and should generally run as background/pre-warm jobs.
 
-- Answer common guest questions using hotel-specific knowledge
-- Support text and voice-note interactions
-- Work through familiar channels such as WhatsApp and Telegram
-- Let hotel staff review conversations, escalations, and unresolved issues in one dashboard
-- Highlight repeated topics, evidence gaps, and operations patterns
-- Make it easy for hotels to update policies, amenities, and knowledge-base content
+## Environment
 
-Future channel and product expansion can include a website chat widget, email ingestion, Instagram direct messages, staff takeover, conversation assignment, knowledge-base management, analytics, and a public landing page for hotel demo requests.
+Create a root `.env`:
 
-## Development Principles
+```env
+VULTR_API_KEY=your_vultr_key
+VULTR_INFERENCE_URL=https://api.vultrinference.com/v1
+VULTR_REASONING_MODEL=VultronRetrieverPrime-Qwen3.5-8B
+VULTR_RETRIEVER_MODEL=VultronRetriever
+VULTR_LOCAL_MODE=false
+VULTR_TIMEOUT_SECONDS=8000
+ENABLE_VECTOR_INDEXING=false
+ENABLE_DIRECT_LLM_EXTRACTION=false
+ENABLE_SLOW_COVENANT_RAG=false
+ENABLE_COVENANT_REFINEMENT=false
+ENABLE_HEADROOM_TREND_SCAN=false
+ENABLE_AMENDMENT_COMPARISON_SCAN=false
+SEC_USER_AGENT=MyHackathonProject (email@example.com)
+DATABASE_PATH=
+WEB_SEARCH_PROVIDER=searxng
+SEARXNG_BASE_URL=https://your-searxng-domain.example
+```
 
-- Keep guest messaging reliable before adding advanced automation.
-- Store complete conversation history and case evidence for auditability.
-- Make AI decisions and tool calls visible to hotel staff.
-- Escalate uncertain or sensitive cases instead of forcing an answer.
-- Keep channel integrations behind a shared interface.
-- Treat each hotel as a separate workspace with isolated data.
+## SearXNG
+
+Self-hosted search deployment lives in:
+
+```text
+infra/searxng
+```
+
+Use Dokploy or Docker Compose and point the backend at `SEARXNG_BASE_URL`.
+
+## Judge-Relevant Strengths
+
+- Finance-native workflow for covenant monitoring.
+- Multi-step retrieval and reasoning, not a single chat call.
+- Live SEC data path.
+- Live Vultr Vector Store retrieval.
+- Script-backed math verification.
+- Early-warning monitoring beyond one covenant calculation.
+- Explicit schedule recommendations for background agents.
+- Explainable output suitable for credit officers.
+
+## Known Backend Limitations
+
+- Credit-agreement and SEC filing extraction are Vultr-first structured extraction steps. Deterministic parsers remain only as fallbacks for local/offline development and for sanity checks.
+- Background schedules are currently recommendations returned by the API; durable workers and notifications are not implemented yet.
+- PDF/scanned-document upload is not implemented yet.
+- Frontend is not implemented yet.

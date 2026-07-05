@@ -6,28 +6,36 @@ product
 
 ## Users
 
-Concierge Court is used by hotel managers, front-desk staff, and property owners who need to understand guest conversations, complaint decisions, and operational patterns without digging through separate channels. The primary user is a manager who wants a clear report-level overview of what is happening across the property, with the ability to inspect the chats the AI agents are handling and intervene when judgment, tone, or escalation risk requires a human.
+The primary user is a risk analyst at a bank reviewing borrower credit risk, covenant compliance, and follow-up actions. They work under time pressure, need a clear view of what changed and what still needs attention, and must be able to trace every claim back to a filing, agreement, tool call, calculation, or generated script.
+
+Hackathon judges are an important secondary audience. The interface should reveal the agent's internal workflow, tool orchestration, Vultr-backed retrieval, and paper trail without turning the product into a staged demo.
 
 ## Product Purpose
 
-Concierge Court gives hotel teams a single dashboard for guest complaints, AI-assisted investigation, evidence review, policy-bound decisions, drafted responses, follow-up actions, and operations alerts. Success means managers can quickly see what the AI agents are doing, trust the evidence trail behind decisions, spot recurring property issues, and step into a conversation before a sensitive case goes wrong.
+Vultr-Audit helps risk analysts understand a borrower's covenant situation by turning SEC filings, credit agreements, financial extraction, code verification, and monitoring recommendations into a clear run history. A successful run gives the analyst a practical overview of the situation, the evidence behind the conclusion, and confidence that follow-up monitoring is scheduled or recommended.
+
+The product should increasingly support automatic follow-up agents, such as one-week rescans, daily 8-K checks, and high-frequency news monitoring for risky situations. These follow-up agents should be visible in the sidebar as scheduled work, not hidden in a report.
 
 ## Brand Personality
 
-Clean, businesslike, and fast. The product should feel like a calm operations command center: easy to scan, precise enough for management review, and approachable enough that non-technical hotel staff understand what the AI has done and what still needs human judgment.
+Precise, calm, clean.
+
+The product should feel like a serious analytical workspace: quiet, legible, and focused on the chat-led investigation. It should make complex agent behavior understandable without adding visual noise.
 
 ## Anti-references
 
-Do not make the dashboard feel overly technical, developer-first, or like an AI lab console. Avoid generic SaaS marketing polish, luxury-hotel beige, decorative AI gradients, glassy effects, and empty dashboard ornament. The interface should not bury the conversation behind agent jargon, and it should not make interception feel risky or hidden.
+Do not make the product look like crypto dark mode, neon fintech, generic AI-purple workflow software, a playful consumer chatbot, or a dense Bloomberg-style terminal. Avoid decorative dashboards, marketing-style hero sections, and heavy visual effects.
+
+The main surface should not be a form-heavy interface with many required fields. The primary input should be a natural-language chat composer with document upload, while structured parameters can be inferred, shown contextually, or adjusted only when needed.
 
 ## Design Principles
 
-1. Management overview first: every main screen should help a manager understand volume, risk, agent activity, and unresolved work before asking them to inspect details.
-2. Agent work stays visible: AI plans, evidence, citations, drafts, and actions should be legible as operational records, not mysterious automation.
-3. Interception is a first-class action: users should always understand where a human can review, approve, correct, rerun, or take over.
-4. Dense without feeling crowded: the dashboard should use a Linear-like clean layout, compact navigation, and restrained visual hierarchy so repeated daily use feels quick.
-5. Business dashboard, not technical cockpit: copy and component states should describe hotel operations and guest outcomes, not internal AI mechanics unless those mechanics are evidence users need.
+1. Lead with the conversation. The chat timeline is the primary interface because the analyst understands the work through the agent's step-by-step investigation.
+2. Make internals inspectable, not overwhelming. Tool calls, retrievals, calculations, scripts, and citations should be visible in the flow and explorable on demand.
+3. Preserve the paper trail. Every claim, ratio, and recommendation should expose source evidence, calculation inputs, and caveats.
+4. Convert analysis into follow-up work. The end state should include a plan, scheduled monitoring recommendations, and borrower questions, not just a static answer.
+5. Keep the surface calm. Use restrained color, clear spacing, familiar shadcn components, and concise language so the analyst stays focused on risk decisions.
 
 ## Accessibility & Inclusion
 
-Target WCAG AA as the baseline. The redesign must include keyboard navigation, visible focus states, color-blind-safe status treatment, readable contrast for muted text and placeholders, clear loading and empty states, and reduced-motion alternatives for all animation. Status should never rely on color alone; labels, icons, and shape must carry the meaning too.
+No special requirements were specified. Target WCAG AA as the default: strong contrast, keyboard-accessible chat, sidebar, and inspector controls, visible focus states, reduced-motion support, and status indicators that do not rely on color alone.

@@ -1,218 +1,237 @@
 ---
-name: Concierge Court
-description: Manager-first hotel AI operations dashboard for guest complaints, agent oversight, and human intervention.
+name: Vultr-Audit
+description: A calm case-file interface for bank risk analysts reviewing covenant risk.
 colors:
-  ink: "#182026"
-  muted: "#69747c"
-  line: "#d9dee2"
-  paper: "#ffffff"
-  wash: "#f5f7f8"
-  teal: "#0f766e"
-  coral: "#b42318"
-  amber: "#a16207"
-  violet: "#6d5dfc"
-  slate-panel: "#eef2f4"
-  focus: "#0f766e"
+  ink: "#18181b"
+  paper: "#fafafa"
+  surface: "#ffffff"
+  muted: "#f4f4f5"
+  border: "#e4e4e7"
+  subdued-text: "#71717a"
+  success: "#047857"
+  success-bg: "#ecfdf5"
+  warning: "#b45309"
+  warning-bg: "#fffbeb"
+  danger: "#b91c1c"
+  danger-bg: "#fef2f2"
+  info: "#1d4ed8"
+  info-bg: "#eff6ff"
 typography:
   display:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "1.75rem"
-    fontWeight: 650
-    lineHeight: 1.18
-    letterSpacing: "-0.01em"
-  headline:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 650
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "0"
   title:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
-    fontSize: "0.9375rem"
-    fontWeight: 650
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 600
     lineHeight: 1.35
     letterSpacing: "0"
   body:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.875rem"
     fontWeight: 400
-    lineHeight: 1.55
+    lineHeight: 1.6
     letterSpacing: "0"
   label:
-    fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+    fontFamily: "Geist Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.75rem"
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: "0"
+    fontWeight: 500
+    lineHeight: 1.35
+    letterSpacing: "0.12em"
+  mono:
+    fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, monospace"
+    fontSize: "0.75rem"
+    fontWeight: 400
+    lineHeight: 1.5
 rounded:
   sm: "6px"
   md: "8px"
-  lg: "12px"
+  lg: "10px"
+  xl: "12px"
   pill: "999px"
 spacing:
   xs: "4px"
   sm: "8px"
   md: "12px"
   lg: "16px"
-  xl: "24px"
-  xxl: "32px"
+  xl: "20px"
+  xxl: "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.teal}"
+    backgroundColor: "{colors.ink}"
     textColor: "{colors.paper}"
-    rounded: "{rounded.md}"
-    padding: "8px 12px"
-    height: "36px"
-    typography: "{typography.label}"
-  button-secondary:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "8px 12px"
-    height: "36px"
-    typography: "{typography.label}"
-  card-default:
-    backgroundColor: "{colors.paper}"
+    rounded: "{rounded.lg}"
+    padding: "0 10px"
+    height: "32px"
+  button-outline:
+    backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.lg}"
-    padding: "16px"
-  status-chip:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.muted}"
+    padding: "0 10px"
+    height: "32px"
+  input-default:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.lg}"
+    padding: "4px 10px"
+    height: "32px"
+  chat-bubble-agent:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.xl}"
+    padding: "8px 12px"
+  chat-bubble-user:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    rounded: "{rounded.xl}"
+    padding: "8px 12px"
+  badge-neutral:
+    backgroundColor: "{colors.muted}"
+    textColor: "{colors.ink}"
     rounded: "{rounded.pill}"
-    padding: "5px 9px"
-    typography: "{typography.label}"
+    padding: "2px 8px"
 ---
 
-# Design System: Concierge Court
+# Design System: Vultr-Audit
 
 ## 1. Overview
 
-**Creative North Star: "The Manager's Flight Board"**
+**Creative North Star: "The Analyst's Case File"**
 
-Concierge Court should feel like a dense operations board for hotel leaders: clean, fast, legible, and always oriented around what needs attention. The redesigned dashboard uses a Linear-like product rhythm with a tight sidebar, crisp surfaces, quiet typography, and status-forward rows. It is not a marketing page and not a technical agent console; the interface exists to help managers understand what the AI agents are doing and where humans should step in.
+Vultr-Audit is a product workspace for risk analysts, not a marketing surface. The visual system should feel like a clean digital case file: organized, quiet, source-conscious, and ready for repeated review. The chat is the primary work surface because it shows the investigation unfolding; the inspector and sidebar support the conversation rather than competing with it.
 
-The visual baseline is shadcn-style composition: familiar primitives, strong focus states, restrained borders, predictable spacing, and components that can be customized without becoming decorative. Cards, tables, panels, tabs, buttons, dialogs, dropdowns, command menus, skeletons, and toasts should all feel like one component system. Agent activity appears as auditable work, not magic: each plan, citation, draft, and action gets a clear place in the workflow.
+The interface rejects crypto dark mode, neon fintech, generic AI-purple workflow software, playful chatbot styling, and dense terminal aesthetics. It should make the agent's internal work visible for judges and analysts, but it must never feel staged or decorative.
 
 **Key Characteristics:**
-- Dense manager-first information layout with compact navigation and fast route switching.
-- Restrained neutral palette with teal used sparingly for primary actions, current location, and live agent activity.
-- Status semantics that combine color, label, icon, and shape so severity stays readable for everyone.
-- shadcn components as the baseline, restyled to fit Concierge Court rather than left at defaults.
-- Human interception controls are visible, direct, and phrased in hotel operations language.
+- Restrained monochrome surfaces with status color used only for state.
+- Flat layered panels, borders, and dividers instead of decorative shadows.
+- Compact shadcn controls with consistent radii and predictable affordances.
+- Chat-led analysis with inspectable evidence, calculations, and scheduled follow-up work.
+- Calm copy that explains what the agent is doing in concrete terms.
 
 ## 2. Colors
 
-The palette is restrained and operational: mostly white, cool gray, strong ink, and small amounts of semantic color for decisions, alerts, and agent state.
+The palette is monochrome with restrained status color: black, white, and zinc neutrals carry the product; green, amber, red, and blue appear only when they communicate state.
 
 ### Primary
-- **Operational Teal**: The primary action and active-state color. Use for current navigation, focused controls, live agent activity, approved/legitimate outcomes, and the strongest call to action on a screen. Keep it below 10% of the visible surface.
-
-### Secondary
-- **Intervention Violet**: Reserved for human takeover, manager review, or AI-agent oversight moments where the user is changing the agent's path. Do not use it as general decoration.
-
-### Tertiary
-- **Risk Coral**: Used for severe alerts, failed checks, unsubstantiated claims, escalation risk, and destructive actions.
-- **Policy Amber**: Used for pending review, evidence gaps, medium-risk warnings, and compensation uncertainty.
+- **Case File Ink**: The primary action and selected-message color. Use it for the strongest foregrounds, user chat bubbles, and primary commands.
 
 ### Neutral
-- **Command Ink**: Primary text, icons, headings, and high-emphasis data.
-- **Readable Muted**: Secondary text and timestamps. Never use it below WCAG AA contrast.
-- **Rule Line**: Dividers, panel borders, table row separators, and input strokes.
-- **Paper Surface**: Main cards, tables, menus, dialogs, and popovers.
-- **Dashboard Wash**: App background, sidebar background variants, and quiet empty states.
-- **Panel Slate**: Secondary navigation rails, filter bars, and grouped control regions when a white card would create too many boxes.
+- **Case File Paper**: The app background. It keeps the surface bright without introducing beige, cream, or warm paper defaults.
+- **Evidence Surface**: The pure white panel and bubble surface for the chat, inspector, sidebar, and form controls.
+- **Quiet Layer**: The muted layer for hover states, inactive badges, panel fills, and low-emphasis grouped content.
+- **Hairline Border**: The structural divider color. Borders define panels, message cards, inputs, sidebars, and the inspector.
+- **Subdued Text**: Secondary labels, timestamps, helper text, and metadata. Use carefully and keep contrast readable.
+
+### Tertiary
+- **Pass Green**: Use only for compliant status, successful checks, and positive follow-up states.
+- **Review Amber**: Use only for warnings, near-limit states, and items requiring analyst review.
+- **Fail Red**: Use only for failures, breached rules, errors, and destructive controls.
+- **Working Blue**: Use only for active processing, live streaming, and currently running agent work.
 
 ### Named Rules
 
-**The Ten Percent Accent Rule.** Teal, violet, coral, and amber are operational signals, not decoration. If a screen feels colorful before the data is read, the color use is too loud.
+**The Status-Only Color Rule.** Green, amber, red, and blue are state language, not decoration. If a color does not tell the analyst something changed, passed, failed, or is running, remove it.
 
-**The Status Redundancy Rule.** Color never carries status alone. Every verdict, severity, confidence, and escalation state must include text and, when useful, an icon.
+**The No Crypto Dark Mode Rule.** Dark surfaces may exist for code output only. The product shell stays light, clean, and legible.
 
 ## 3. Typography
 
-**Display Font:** Inter, with system-ui fallback.
-**Body Font:** Inter, with system-ui fallback.
-**Label/Mono Font:** Inter for labels; use a mono stack only for trace IDs, timestamps, payload snippets, or policy locators.
+**Display Font:** Geist Variable with ui-sans-serif fallback  
+**Body Font:** Geist Variable with ui-sans-serif fallback  
+**Label/Mono Font:** Geist Mono for numbers, code output, ratios, and payload previews
 
-**Character:** Product-native, compact, and businesslike. The type system should look like a daily operations tool rather than a brand campaign.
+**Character:** The typography is compact and operational. It should feel precise without becoming cramped, using weight and spacing rather than oversized type.
 
 ### Hierarchy
-- **Display** (650, 28px, 1.18): Screen titles, dashboard overview headers, and important modal titles only.
-- **Headline** (650, 20px, 1.25): Panel headings, report sections, case titles, and major table group headings.
-- **Title** (650, 15px, 1.35): Row titles, card titles, alert summaries, and active conversation subjects.
-- **Body** (400, 14px, 1.55): Message previews, reasoning, draft responses, and operational summaries. Prose line length should stay under 75ch.
-- **Label** (600, 12px, 1.2): Navigation labels, chips, metadata, column headers, and compact controls. Use sentence case by default.
+
+- **Display** (600, 16px, 1.25): App title and run title only. Product UI does not use hero-scale type.
+- **Headline** (600, 14px, 1.35): Inspector section titles, event titles, and important panel headers.
+- **Title** (500-600, 14px, 1.35): Run list labels, tool names, memo headings, and action labels.
+- **Body** (400, 14px, 1.6): Chat copy, evidence summaries, explanations, and memo text. Cap long prose at 65-75ch.
+- **Label** (500, 12px, 0.12em, uppercase only for short labels): Metadata labels such as Decision, Inputs, and Citations.
+- **Mono** (400, 12px, 1.5): Ratios, values, code output, JSON payloads, and accession-like identifiers.
 
 ### Named Rules
 
-**The UI Scale Rule.** Do not use landing-page type scales in the dashboard. Product headings are fixed rem sizes, not fluid hero typography.
+**The Product Type Rule.** Never use display typography for ordinary UI. The analyst should feel oriented, not addressed by a landing page.
 
-**The No Jargon Label Rule.** Labels must describe user-facing work: "Review draft", "Take over chat", "Escalate case", "View evidence". Avoid internal agent-stage names unless the user is inspecting a trace.
+**The Evidence Number Rule.** Financial values, ratios, script output, and raw payload previews use mono or tabular numbers.
 
 ## 4. Elevation
 
-Concierge Court uses tonal layering and crisp borders first, shadows second. Resting surfaces are mostly flat. Elevation appears when a component is interactive, floating, or temporarily above the main workflow, such as dropdowns, command menus, dialogs, and hoverable rows.
+The system is flat by default. Depth comes from borders, tonal layering, spacing, and sticky regions, not shadows. A panel can be important without floating. Shadows are reserved for existing shadcn focus mechanics or short-lived interaction feedback, never for decorative cards.
 
 ### Shadow Vocabulary
-- **Crisp Rest** (`box-shadow: 0 1px 2px rgba(24, 32, 38, 0.08)`): Current card and row vocabulary. Use only when a surface needs slight separation from the wash background.
-- **Popover Lift** (`box-shadow: 0 8px 24px rgba(24, 32, 38, 0.14)`): Menus, command palette, date pickers, and tooltips. Do not pair this with heavy borders.
-- **Dialog Lift** (`box-shadow: 0 20px 48px rgba(24, 32, 38, 0.18)`): Dialogs and takeover confirmations only.
+
+- **None at Rest**: Panels, sidebars, chat bubbles, inspector sections, inputs, and badges are border-defined at rest.
+- **Focus Ring**: The 3px shadcn focus ring communicates keyboard focus and must remain visible.
+- **Minimal Interaction Lift**: Active controls may translate by 1px on press. Do not pair wide shadows with 1px borders.
 
 ### Named Rules
 
-**The Flat Operations Rule.** Tables, inbox rows, trace items, and dashboard panels stay flat at rest. Depth is used for hierarchy and interaction, not visual softness.
+**The Flat Case File Rule.** If a surface can be separated with a 1px border or divider, use that instead of a shadow.
 
 ## 5. Components
 
 ### Buttons
-- **Shape:** Gently squared product controls (8px radius), matching shadcn Button proportions.
-- **Primary:** Operational Teal background with Paper text, 36px height, 8px by 12px padding. Use for one primary action per local region.
-- **Hover / Focus:** Hover deepens the background or shifts to a subtle teal tint. Focus uses a visible 2px ring with offset, never outline removal.
-- **Secondary / Ghost / Tertiary:** Secondary buttons use Paper background, Rule Line border, Command Ink text. Ghost buttons are for sidebar and row actions. Destructive buttons use Risk Coral and must name the object being affected.
+
+- **Shape:** Compact rounded rectangle (10px radius).
+- **Primary:** Case File Ink background with Case File Paper text, 32px height, compact horizontal padding.
+- **Hover / Focus:** Hover slightly softens the ink or fills neutral backgrounds. Focus uses the shadcn ring and must remain visible.
+- **Secondary / Ghost / Outline:** Outline and ghost variants use borders or neutral hover fills. They should never introduce new accent colors.
 
 ### Chips
-- **Style:** Pill shape for compact metadata and status. Use subtle tinted fills with borders only when the state needs emphasis.
-- **State:** Active filters can use Teal tint and border. Severity chips must include text such as "High risk", "Needs review", or "Agent live".
+
+- **Style:** Small pill badges with neutral fills or state-tinted backgrounds.
+- **State:** Status chips use Pass Green, Review Amber, Fail Red, or Working Blue only when the label expresses that state.
 
 ### Cards / Containers
-- **Corner Style:** 12px for larger panels, 8px for compact rows and nested trace items. Never exceed 16px on dashboard cards.
-- **Background:** Paper for primary content, Dashboard Wash or Panel Slate for grouped controls and empty states.
-- **Shadow Strategy:** Flat by default with Crisp Rest only when separation from the background is needed.
-- **Border:** Rule Line at 1px. No colored side stripes.
-- **Internal Padding:** 16px for cards, 12px for dense rows, 24px for page-level summary regions.
+
+- **Corner Style:** Small to medium radius (8-12px). Never use oversized rounded cards.
+- **Background:** Evidence Surface for primary panels, Quiet Layer for grouped or inactive detail.
+- **Shadow Strategy:** Flat by default; use borders and dividers.
+- **Border:** Hairline Border is the primary container boundary.
+- **Internal Padding:** Dense product spacing, usually 12-20px depending on hierarchy.
 
 ### Inputs / Fields
-- **Style:** shadcn Input baseline with Paper background, Rule Line border, 8px radius, 36px to 40px height.
-- **Focus:** Teal focus ring with visible offset. Placeholder text must pass WCAG AA contrast or be darkened.
-- **Error / Disabled:** Error states use Risk Coral plus text. Disabled states reduce opacity but keep labels readable.
+
+- **Style:** 32px compact fields with 10px radius, border stroke, and white or transparent surface.
+- **Focus:** Border shifts to ring color with the shadcn focus ring.
+- **Error / Disabled:** Error uses Fail Red tint and border. Disabled fields reduce opacity and remove pointer interaction.
 
 ### Navigation
-- **Style:** Use a left sidebar as the primary redesign direction. It should support quick links for Inbox, Agent Activity, Conversations, Reports, Ops Alerts, Policies, and Settings. Active nav uses Teal tint, a clear icon, and readable label text.
-- **Density:** Compact rows, 36px to 40px tall, with grouped sections for operations and admin.
-- **Mobile Treatment:** Collapse to a top bar plus sheet navigation. Preserve active route, search, and primary status summary.
 
-### Agent Activity Timeline
+The left sidebar is an agent-run ledger. It should list current runs, scheduled follow-up agents, and run status with compact rows. The sidebar can collapse, but it must preserve recognizability through icons and tooltips. Active rows use neutral selection, not saturated accent color.
 
-Agent work is a signature component. Each event should show stage, source, confidence, timestamp, output summary, and expandable evidence. The default view must be readable by a manager; raw payloads belong behind disclosure controls.
+### Chat Timeline
 
-### Case Inbox Row
+The chat timeline is the primary product surface. User messages use the dark primary bubble; agent events use white bordered bubbles; processing events show Working Blue only for live activity. Every event that affects the analysis should be inspectable in the right panel.
 
-Inbox rows should behave like compact work items, not marketing cards. Each row shows guest, channel, subject, room, urgency, current owner, AI status, and last activity. Rows support hover actions for "Open case", "Review draft", and "Take over chat".
+### Inspector
+
+The inspector is contextual evidence, not a second report page. It should show the selected event's inputs, outputs, citations, calculations, code output, or raw payload. Long details scroll inside the inspector while the chat remains the primary scroll surface.
 
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** use shadcn primitives as the implementation baseline, then tune tokens, density, and state vocabulary for Concierge Court.
-- **Do** make manager overview visible before detail: workload, live agents, risky chats, pending approvals, and operations patterns.
-- **Do** keep AI actions auditable with clear traces, citations, drafts, tickets, and intervention controls.
-- **Do** use the current restraint of Paper, Dashboard Wash, Command Ink, Rule Line, and Operational Teal as the base palette.
-- **Do** include keyboard states, skeleton loading, empty states, reduced-motion support, and color-blind-safe status patterns.
+
+- **Do** lead with the conversation. The chat timeline is the analyst's main work surface.
+- **Do** use monochrome surfaces and restrained status colors.
+- **Do** keep panels flat and layered with borders.
+- **Do** expose source citations, tool inputs, tool outputs, code output, and raw payloads on demand.
+- **Do** show scheduled follow-up agents in the sidebar as operational work.
+- **Do** use concise, natural language for agent progress: "I am retrieving evidence for total debt" beats internal system phrasing.
+- **Do** preserve shadcn component vocabulary across buttons, inputs, badges, bubbles, sidebar, and attachments.
 
 ### Don't:
-- **Don't** make the dashboard feel overly technical, developer-first, or like an AI lab console.
-- **Don't** use generic SaaS marketing polish, luxury-hotel beige, decorative AI gradients, glassy effects, or empty dashboard ornament.
-- **Don't** hide human intervention. "Take over chat", "Review draft", "Rerun investigation", and "Escalate case" should be visible where the decision is made.
-- **Don't** use color alone for severity, verdict, confidence, or escalation state.
-- **Don't** create identical card grids with icon, heading, and paragraph repeated across the dashboard.
-- **Don't** pair 1px borders with large soft shadows on every surface. Pick crisp border-first layering for normal dashboard UI.
+
+- **Don't** make the product look like crypto dark mode, neon fintech, generic AI-purple workflow software, a playful consumer chatbot, or a dense Bloomberg-style terminal.
+- **Don't** use marketing-style hero sections, decorative dashboards, or heavy visual effects.
+- **Don't** make the main surface a form-heavy interface with many required fields. The primary input is a natural-language chat composer with document upload.
+- **Don't** use color as decoration. Status colors only communicate pass, warning, fail, or running.
+- **Don't** use oversized card radii, wide soft shadows, gradient text, glassmorphism, or colored side-stripe borders.
+- **Don't** hide the paper trail in a final report only. Evidence must be visible where the claim appears.
