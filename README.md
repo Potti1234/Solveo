@@ -1,5 +1,7 @@
 # Solveo
 
+<img width="1254" height="1254" alt="image" src="https://github.com/user-attachments/assets/cd389e79-a0f5-4748-8154-20c228939efb" />
+
 **Live demo:** https://solveo.lukaspottner.com
 
 Solveo is an agentic SEC filing research and credit-risk monitoring workspace for banks, credit teams, and traders. It helps users analyze public company filings, credit agreements, covenant disclosures, revenue trends, market-entry signals, and external web context through a tool-using agent rather than a manual document hunt.
