@@ -16,7 +16,7 @@ import {
   TerminalSquare,
   XCircle
 } from "lucide-react";
-import { resolveAuditIntent, runAuditStream } from "../lib/api";
+import { resolveAuditIntent, runAuditStream, type AuditIntentContext } from "../lib/api";
 import type { AuditRun, AuditStreamEvent, ChatMessage, ChatRun, FileAttachment } from "../lib/types";
 import { cn, compactNumber, formatRatio } from "../lib/utils";
 import {
@@ -480,6 +480,32 @@ function cleanReportLine(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function buildIntentContext(run: ChatRun): AuditIntentContext {
+  return {
+    ticker: run.ticker,
+    workflow: run.workflow,
+    creditAgreementUrl: run.creditAgreementUrl,
+    recentMessages: run.messages.slice(-8).map((message) => ({
+      role: message.role,
+      content: message.content.slice(0, 1600)
+    }))
+  };
+}
+
+function buildContextualPrompt(prompt: string, run: ChatRun) {
+  const contextLines = [
+    run.ticker ? `Prior ticker: ${run.ticker}` : null,
+    run.workflow ? `Prior workflow: ${run.workflow}` : null,
+    run.creditAgreementUrl ? `Prior credit agreement URL: ${run.creditAgreementUrl}` : null,
+    ...run.messages
+      .slice(-4)
+      .map((message) => `${message.role}: ${message.content.replace(/\s+/g, " ").trim().slice(0, 800)}`)
+  ].filter(Boolean);
+
+  if (!contextLines.length) return prompt;
+  return [`Conversation context:`, ...contextLines, "", `Current user request: ${prompt}`].join("\n");
+}
+
 export function CreditAgentApp() {
   const [runs, setRuns] = React.useState<ChatRun[]>(loadRuns);
   const [activeRunId, setActiveRunId] = React.useState(() => runs[0]?.id ?? "");
@@ -533,11 +559,18 @@ export function CreditAgentApp() {
     }));
 
     try {
-      const intent = await resolveAuditIntent({ prompt: input.prompt, creditAgreementUrl: input.creditAgreementUrl });
+      const context = buildIntentContext(activeRun);
+      const intent = await resolveAuditIntent({ prompt: input.prompt, creditAgreementUrl: input.creditAgreementUrl, context });
       const ticker = intent.ticker.toUpperCase();
       const creditAgreementUrl = intent.creditAgreementUrl ?? input.creditAgreementUrl;
       const workflow = intent.workflow;
       const isSecResearch = workflow === "sec_research";
+      const workflowPrompt = buildContextualPrompt(input.prompt, {
+        ...activeRun,
+        ticker,
+        workflow,
+        creditAgreementUrl
+      });
 
       updateRun(runId, (run) => ({
         ...run,
@@ -557,7 +590,7 @@ export function CreditAgentApp() {
         ]
       }));
 
-      const response = await runAuditStream({ ticker, creditAgreementUrl, prompt: input.prompt, workflow }, (event) => {
+      const response = await runAuditStream({ ticker, creditAgreementUrl, prompt: workflowPrompt, workflow }, (event) => {
         if (event.type === "done") return;
         updateRun(runId, (run) => ({
           ...run,

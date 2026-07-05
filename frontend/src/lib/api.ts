@@ -19,7 +19,18 @@ export async function runAudit(input: { ticker: string; creditAgreementUrl?: str
   return (await response.json()) as AuditResponse;
 }
 
-export async function resolveAuditIntent(input: { prompt: string; creditAgreementUrl?: string }): Promise<{ ticker: string; creditAgreementUrl?: string; workflow: "credit_review" | "sec_research" }> {
+export type AuditIntentContext = {
+  ticker?: string;
+  workflow?: "credit_review" | "sec_research";
+  creditAgreementUrl?: string;
+  recentMessages?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+};
+
+export async function resolveAuditIntent(input: {
+  prompt: string;
+  creditAgreementUrl?: string;
+  context?: AuditIntentContext;
+}): Promise<{ ticker: string; creditAgreementUrl?: string; workflow: "credit_review" | "sec_research" }> {
   const response = await fetch(`${API_URL}/api/audits/intent`, {
     method: "POST",
     headers: {

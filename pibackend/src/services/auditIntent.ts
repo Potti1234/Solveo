@@ -8,6 +8,13 @@ export type AuditIntent = {
   workflow: "credit_review" | "sec_research";
 };
 
+export type AuditIntentContext = {
+  ticker?: string;
+  workflow?: "credit_review" | "sec_research";
+  creditAgreementUrl?: string;
+  recentMessages?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+};
+
 type LlmIntent = {
   ticker?: string | null;
   companyName?: string | null;
@@ -19,16 +26,20 @@ type CompanyChoice = {
   ticker?: string | null;
 };
 
-export async function resolveAuditIntent(prompt: string, providedCreditAgreementUrl?: string): Promise<AuditIntent | null> {
-  const creditAgreementUrl = extractUrl(prompt) ?? providedCreditAgreementUrl;
-  const llmIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, false);
+export async function resolveAuditIntent(
+  prompt: string,
+  providedCreditAgreementUrl?: string,
+  context?: AuditIntentContext
+): Promise<AuditIntent | null> {
+  const creditAgreementUrl = extractUrl(prompt) ?? providedCreditAgreementUrl ?? context?.creditAgreementUrl;
+  const llmIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, false, context);
 
-  let resolved = await resolveIntentTicker(llmIntent, prompt);
+  let resolved = await resolveIntentTicker(llmIntent, prompt, context);
   let finalIntent = llmIntent;
 
   if (!resolved || !finalIntent.workflow) {
-    finalIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, true);
-    resolved = await resolveIntentTicker(finalIntent, prompt);
+    finalIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, true, context);
+    resolved = await resolveIntentTicker(finalIntent, prompt, context);
   }
 
   if (!resolved) return null;
@@ -36,18 +47,34 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
   return {
     ticker: resolved.ticker,
     creditAgreementUrl: finalIntent.creditAgreementUrl ?? creditAgreementUrl,
-    workflow: finalIntent.workflow ?? "credit_review"
+    workflow: finalIntent.workflow ?? context?.workflow ?? "credit_review"
   };
 }
 
-async function extractIntentWithLlm(prompt: string, creditAgreementUrl: string | undefined, retry: boolean): Promise<LlmIntent> {
+async function extractIntentWithLlm(
+  prompt: string,
+  creditAgreementUrl: string | undefined,
+  retry: boolean,
+  context?: AuditIntentContext
+): Promise<LlmIntent> {
   return llmClient.chatJson<LlmIntent>(
     [
       {
         role: "system",
         content:
-          "Extract the public company ticker, optional SEC credit agreement URL, and workflow from an analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl, workflow. Use workflow credit_review only for covenant, credit agreement, debt, leverage, liquidity, compliance certificate, or lender monitoring requests. Use sec_research for general SEC filing questions, business analysis, risk factors, revenue, segments, MD&A, legal proceedings, executive compensation, ownership, or other non-covenant filing research. If no ticker is explicit but a company name is present, set companyName. Tickers may be lowercase in the prompt, for example 'from mck' means ticker MCK. Do not guess unrelated tickers."
+          "Extract the public company ticker, optional SEC credit agreement URL, and workflow from an analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl, workflow. Use workflow credit_review only for covenant, credit agreement, debt, leverage, liquidity, compliance certificate, or lender monitoring requests. Use sec_research for general SEC filing questions, business analysis, risk factors, revenue, segments, MD&A, legal proceedings, executive compensation, ownership, or other non-covenant filing research. If the current instruction is a follow-up and does not name a company, use the prior ticker/company from context. Tickers may be lowercase in the prompt, for example 'from mck' means ticker MCK. Do not guess unrelated tickers."
       },
+      ...(context
+        ? [
+            {
+              role: "user" as const,
+              content: JSON.stringify({
+                instruction: "Conversation context for resolving this follow-up.",
+                context
+              })
+            }
+          ]
+        : []),
       ...(retry
         ? [
             {
@@ -60,6 +87,8 @@ async function extractIntentWithLlm(prompt: string, creditAgreementUrl: string |
                 prompt,
                 tickerCandidates: extractTickerCandidates(prompt),
                 possibleCompanyNames: extractCompanyNameCandidates(prompt),
+                priorTicker: context?.ticker,
+                priorWorkflow: context?.workflow,
                 creditAgreementUrl
               })
             }
@@ -70,12 +99,12 @@ async function extractIntentWithLlm(prompt: string, creditAgreementUrl: string |
         content: prompt
       }
     ],
-    () => fallbackIntent(prompt, creditAgreementUrl),
+    () => fallbackIntent(prompt, creditAgreementUrl, context),
     isLlmIntent
   );
 }
 
-async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
+async function resolveIntentTicker(intent: LlmIntent, prompt: string, context?: AuditIntentContext) {
   if (intent.ticker) {
     const company = await resolveCompanyTicker(intent.ticker);
     if (company) return company;
@@ -91,7 +120,7 @@ async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
     if (company) return company;
   }
 
-  const fallback = fallbackIntent(prompt);
+  const fallback = fallbackIntent(prompt, undefined, context);
   if (fallback.ticker) {
     const company = await resolveCompanyTicker(fallback.ticker);
     if (company) return company;
@@ -107,17 +136,22 @@ async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
     if (company) return company;
   }
 
+  if (context?.ticker) {
+    const company = await resolveCompanyTicker(context.ticker);
+    if (company) return company;
+  }
+
   return null;
 }
 
-function fallbackIntent(prompt: string, creditAgreementUrl?: string): LlmIntent {
+function fallbackIntent(prompt: string, creditAgreementUrl?: string, context?: AuditIntentContext): LlmIntent {
   const ticker = extractTickerCandidates(prompt)[0] ?? null;
   const companyName = extractCompanyNameCandidates(prompt)[0] ?? null;
   return {
-    ticker,
+    ticker: ticker ?? context?.ticker ?? null,
     companyName,
-    creditAgreementUrl: extractUrl(prompt) ?? creditAgreementUrl ?? null,
-    workflow: null
+    creditAgreementUrl: extractUrl(prompt) ?? creditAgreementUrl ?? context?.creditAgreementUrl ?? null,
+    workflow: context?.workflow ?? null
   };
 }
 
