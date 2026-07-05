@@ -21,6 +21,7 @@ export type ChatRun = {
   id: string;
   title: string;
   ticker?: string;
+  workflow?: "credit_review" | "sec_research";
   creditAgreementUrl?: string;
   status: ChatRunStatus;
   createdAt: string;

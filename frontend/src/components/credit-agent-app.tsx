@@ -220,30 +220,31 @@ function buildTimeline(run: ChatRun): TimelineItem[] {
   }
 
   if (run.status === "running" && !(run.streamEvents?.length)) {
+    const isSecResearch = run.workflow === "sec_research";
     items.push(
       {
         id: `${run.id}:running:sec`,
         kind: "phase",
-        title: "Resolve borrower and SEC filings",
-        summary: "Looking up company identifiers, recent filings, and agreement sources.",
+        title: "Resolve company and SEC filings",
+        summary: isSecResearch ? "Looking up company identifiers and recent filings." : "Looking up company identifiers, recent filings, and agreement sources.",
         status: "running",
-        detail: <PlainDetail lines={["Ticker resolution", "SEC submissions lookup", "Credit agreement discovery"]} />
+        detail: <PlainDetail lines={isSecResearch ? ["Ticker resolution", "SEC submissions lookup", "Filing selection"] : ["Ticker resolution", "SEC submissions lookup", "Credit agreement discovery"]} />
       },
       {
         id: `${run.id}:running:retrieval`,
         kind: "retrieval",
-        title: "Retrieve covenant evidence",
-        summary: "Scanning agreement text for covenant rules, definitions, and reporting templates.",
+        title: isSecResearch ? "Retrieve filing evidence" : "Retrieve covenant evidence",
+        summary: isSecResearch ? "Searching SEC filing sections relevant to the question." : "Scanning agreement text for covenant rules, definitions, and reporting templates.",
         status: "queued",
-        detail: <PlainDetail lines={["Financial Covenants", "Consolidated Leverage Ratio", "Fixed Charge Coverage Ratio"]} />
+        detail: <PlainDetail lines={isSecResearch ? ["Relevant filing forms", "Targeted retrieval queries", "Cited excerpts"] : ["Financial Covenants", "Consolidated Leverage Ratio", "Fixed Charge Coverage Ratio"]} />
       },
       {
         id: `${run.id}:running:calculation`,
-        kind: "calculation",
-        title: "Run verification scripts",
-        summary: "Preparing covenant math, stress tests, and code-based verification.",
+        kind: isSecResearch ? "report" : "calculation",
+        title: isSecResearch ? "Synthesize answer" : "Run verification scripts",
+        summary: isSecResearch ? "Preparing a filing-grounded answer with caveats." : "Preparing covenant math, stress tests, and code-based verification.",
         status: "queued",
-        detail: <PlainDetail lines={["Extract legal formula", "Extract financial variables", "Execute code", "Compare against threshold"]} />
+        detail: <PlainDetail lines={isSecResearch ? ["Compare excerpts", "Answer the question", "List caveats"] : ["Extract legal formula", "Extract financial variables", "Execute code", "Compare against threshold"]} />
       }
     );
   }
@@ -372,9 +373,9 @@ function buildTimeline(run: ChatRun): TimelineItem[] {
   items.push({
     id: `${run.id}:report`,
     kind: "report",
-    title: "Final credit memo",
+    title: audit.rulebook.agreementName === "General SEC filing research" ? "Final SEC research answer" : "Final credit memo",
     summary: audit.memo.summary,
-    status: audit.memo.status === "compliant" ? "complete" : "warning",
+    status: audit.memo.status === "compliant" || audit.rulebook.agreementName === "General SEC filing research" ? "complete" : "warning",
     raw: audit.memo,
     detail: <ReportDetail audit={audit} markdown={run.markdown} />
   });
@@ -393,7 +394,7 @@ function phaseToKind(phase: string): TimelineKind {
 
 function naturalPhaseTitle(phase: string) {
   const titles: Record<string, string> = {
-    start: "Starting the credit review",
+    start: "Starting the workflow",
     sec_lookup: "Looking up SEC company data",
     exhibit_discovery: "Finding the credit agreement",
     keyword_scan: "Scanning covenant sections",
@@ -411,10 +412,12 @@ function naturalPhaseTitle(phase: string) {
 function naturalPhaseMessage(event: Extract<AuditStreamEvent, { message: string }>) {
   if (event.type === "heartbeat") return "This step is taking longer because the agent is reading filings, querying external services, or waiting on model extraction.";
   const payload = "payload" in event ? event.payload : undefined;
+  if (event.phase === "start" && payload?.workflow === "sec_research") return "I am starting a general SEC filing research workflow.";
   if (event.phase === "sec_lookup" && payload?.ticker) return `I am resolving ${String(payload.ticker).toUpperCase()} against the SEC company index.`;
   if (event.phase === "exhibit_discovery") return "I am checking recent 10-K and 8-K filings for a usable credit agreement exhibit.";
   if (event.phase === "keyword_scan") return "I am scanning the agreement for financial covenants, leverage ratios, coverage ratios, and compliance certificate language.";
   if (event.phase === "rule_extraction") return "I am turning the legal covenant language into structured rules with thresholds and citations.";
+  if (event.phase === "planning" && payload?.prompt) return "I am deciding which SEC filing forms and search queries are needed for the question.";
   if (event.phase === "planning") return "I am deciding which filing tables and line items are needed to test the covenant.";
   if (event.phase === "retrieval" && payload?.query) return `I am retrieving evidence for: ${String(payload.query)}.`;
   if (event.phase === "calculation") return "I am computing the covenant ratios from the extracted financial variables.";
@@ -459,7 +462,7 @@ export function CreditAgentApp() {
 
     updateRun(runId, (run) => ({
       ...run,
-      title: "Resolving credit review",
+      title: "Resolving request",
       status: "running",
       error: undefined,
       audit: undefined,
@@ -471,7 +474,7 @@ export function CreditAgentApp() {
         createMessage("user", input.prompt, input.attachments),
         createMessage(
           "assistant",
-          "I am reading your instruction, identifying the borrower, and preparing the credit workflow."
+          "I am reading your instruction, identifying the company, and choosing the right filing workflow."
         )
       ]
     }));
@@ -480,23 +483,28 @@ export function CreditAgentApp() {
       const intent = await resolveAuditIntent({ prompt: input.prompt, creditAgreementUrl: input.creditAgreementUrl });
       const ticker = intent.ticker.toUpperCase();
       const creditAgreementUrl = intent.creditAgreementUrl ?? input.creditAgreementUrl;
+      const workflow = intent.workflow;
+      const isSecResearch = workflow === "sec_research";
 
       updateRun(runId, (run) => ({
         ...run,
         ticker,
+        workflow,
         creditAgreementUrl,
-        title: `${ticker} credit review`,
+        title: isSecResearch ? `${ticker} SEC research` : `${ticker} credit review`,
         updatedAt: now(),
         messages: [
           ...run.messages,
           createMessage(
             "assistant",
-            `I identified ${ticker} from your instruction and will now run SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and memo generation.`
+            isSecResearch
+              ? `I identified ${ticker} and will search the relevant SEC filings for your question.`
+              : `I identified ${ticker} from your instruction and will now run SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and memo generation.`
           )
         ]
       }));
 
-      const response = await runAuditStream({ ticker, creditAgreementUrl }, (event) => {
+      const response = await runAuditStream({ ticker, creditAgreementUrl, prompt: input.prompt, workflow }, (event) => {
         if (event.type === "done") return;
         updateRun(runId, (run) => ({
           ...run,
@@ -514,7 +522,9 @@ export function CreditAgentApp() {
           ...run.messages,
           createMessage(
             "assistant",
-            `Finished ${ticker}. Status: ${response.audit.memo.status.replace("_", " ")}. ${response.audit.memo.summary}`
+            isSecResearch
+              ? `Finished ${ticker} SEC research. ${response.audit.memo.summary}`
+              : `Finished ${ticker}. Status: ${response.audit.memo.status.replace("_", " ")}. ${response.audit.memo.summary}`
           )
         ]
       }));
@@ -775,7 +785,7 @@ function ChatWorkspace({
                 setPrompt(value);
                 setCreditAgreementUrl(extractUrl(value) ?? run.creditAgreementUrl ?? "");
               }}
-              placeholder="Ask the agent in plain language. Example: Analyze McKesson with this credit agreement URL and prepare a covenant risk plan."
+              placeholder="Ask the agent in plain language. Example: What changed in Apple risk factors, or analyze McKesson covenant risk with this agreement URL."
               aria-label="Prompt"
               className="min-h-24 border-0 px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
             />

@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { AgentEngine } from "../agents/agentEngine";
+import { GeneralSecAgent } from "../agents/generalSecAgent";
 import { resolveAuditIntent } from "../services/auditIntent";
 import { renderAuditMarkdown } from "../services/auditReport";
 import type { AuditRequest, AuditThought } from "../types";
@@ -26,7 +27,7 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
     return { detail: "ticker is required." };
   }
 
-  const engine = new AgentEngine();
+  const engine = createEngine(request);
   return engine.run(request);
 }).post("/report", async ({ body, set }) => {
   const request = normalizeAuditRequest(body);
@@ -35,7 +36,7 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
     return { detail: "ticker is required." };
   }
 
-  const engine = new AgentEngine();
+  const engine = createEngine(request);
   const result = await engine.run(request);
   return {
     audit: result,
@@ -67,8 +68,16 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
       const startedAt = new Date().toISOString();
       send("start", {
         phase: "start",
-        message: `Starting credit workflow for ${request.ticker.toUpperCase()}.`,
-        payload: { ticker: request.ticker, creditAgreementUrl: request.creditAgreementUrl ?? null },
+        message:
+          request.workflow === "sec_research"
+            ? `Starting SEC filing research for ${request.ticker.toUpperCase()}.`
+            : `Starting credit workflow for ${request.ticker.toUpperCase()}.`,
+        payload: {
+          ticker: request.ticker,
+          workflow: request.workflow ?? "credit_review",
+          creditAgreementUrl: request.creditAgreementUrl ?? null,
+          prompt: request.prompt ?? null
+        },
         createdAt: startedAt
       });
 
@@ -80,7 +89,7 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
         });
       }, 8_000);
 
-      const engine = new AgentEngine((thought: AuditThought) => {
+      const engine = createEngine(request, (thought: AuditThought) => {
         send("thought", {
           ...thought,
           createdAt: new Date().toISOString()
@@ -139,6 +148,12 @@ function normalizeAuditRequest(body: unknown): AuditRequest | null {
   return {
     ticker,
     creditAgreementUrl: payload.creditAgreementUrl,
+    prompt: typeof payload.prompt === "string" ? payload.prompt : undefined,
+    workflow: payload.workflow === "sec_research" ? "sec_research" : "credit_review",
     rulebook: payload.rulebook
   };
+}
+
+function createEngine(request: AuditRequest, onThought?: (thought: AuditThought) => void) {
+  return request.workflow === "sec_research" ? new GeneralSecAgent(onThought) : new AgentEngine(onThought);
 }

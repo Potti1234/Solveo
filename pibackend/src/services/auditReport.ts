@@ -45,10 +45,11 @@ export function buildAuditExplainability(result: Omit<AuditRunResult, "explainab
 
 export function renderAuditMarkdown(result: AuditRunResult): string {
   const report = result.explainability;
+  const isGeneralResearch = result.rulebook.agreementName === "General SEC filing research";
   const lines = [
-    `# Covenant Audit Report: ${result.memo.ticker}`,
+    `# ${isGeneralResearch ? "SEC Filing Research" : "Covenant Audit Report"}: ${result.memo.ticker}`,
     "",
-    `Status: ${result.memo.status.toUpperCase()}`,
+    isGeneralResearch ? "Status: ANSWERED FROM FILINGS" : `Status: ${result.memo.status.toUpperCase()}`,
     "",
     "## Documents Used",
     ...report.documents.map((document) => `- ${document.title} (${document.kind}): ${document.url}`),
@@ -62,19 +63,28 @@ export function renderAuditMarkdown(result: AuditRunResult): string {
         `- ${evidence.label}${evidence.value !== undefined ? `: ${formatValue(evidence.value)}${evidence.unit ? ` ${evidence.unit}` : ""}` : ""}\n  Source: ${evidence.source}\n  Locator: ${evidence.locator}\n  Excerpt: ${evidence.excerpt}`
     ),
     "",
-    "## Calculation Trail",
-    ...report.calculationTrail.map(
-      (calculation) =>
-        `- ${calculation.formula}: ${calculation.actual.toFixed(3)} ${calculation.operator} ${calculation.threshold} => ${calculation.result.toUpperCase()}\n  Inputs: ${calculation.inputs
-          .map((input) => `${input.name}=${formatValue(input.value)} ${input.unit}`)
-          .join(", ")}`
-    ),
-    "",
-    "## Code Verification",
-    ...report.codeVerification.map(
-      (code) =>
-        `- ${code.purpose}: exit=${code.exitCode}, timedOut=${code.timedOut}\n  Output: ${oneLine(code.stdoutPreview)}`
-    ),
+    ...(report.calculationTrail.length
+      ? [
+          "## Calculation Trail",
+          ...report.calculationTrail.map(
+            (calculation) =>
+              `- ${calculation.formula}: ${calculation.actual.toFixed(3)} ${calculation.operator} ${calculation.threshold} => ${calculation.result.toUpperCase()}\n  Inputs: ${calculation.inputs
+                .map((input) => `${input.name}=${formatValue(input.value)} ${input.unit}`)
+                .join(", ")}`
+          ),
+          ""
+        ]
+      : []),
+    ...(report.codeVerification.length
+      ? [
+          "## Code Verification",
+          ...report.codeVerification.map(
+            (code) =>
+              `- ${code.purpose}: exit=${code.exitCode}, timedOut=${code.timedOut}\n  Output: ${oneLine(code.stdoutPreview)}`
+          ),
+          ""
+        ]
+      : []),
     "",
     "## Credit Monitoring",
     ...(result.creditMonitoring
@@ -99,7 +109,7 @@ export function renderAuditMarkdown(result: AuditRunResult): string {
     "## Decision",
     report.decisionTrail.summary,
     "",
-    "## Borrower Questions",
+    `## ${isGeneralResearch ? "Key Findings" : "Borrower Questions"}`,
     ...report.decisionTrail.borrowerQuestions.map((question) => `- ${question}`),
     "",
     "## Caveats",
@@ -283,6 +293,10 @@ function toInputSummary(input: FinancialLineItem) {
 }
 
 function buildCaveats(result: Omit<AuditRunResult, "explainability">): string[] {
+  if (result.rulebook.agreementName === "General SEC filing research") {
+    return ["General SEC filing research does not include a covenant compliance decision."];
+  }
+
   const caveats: string[] = [];
   if (result.memo.status === "needs_review") caveats.push("The agent did not extract enough measured values for a final compliance decision.");
   if (result.retrievals.some((retrieval) => retrieval.lineItems.some((item) => item.name === "EBITDA"))) {

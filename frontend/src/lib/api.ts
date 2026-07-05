@@ -19,7 +19,7 @@ export async function runAudit(input: { ticker: string; creditAgreementUrl?: str
   return (await response.json()) as AuditResponse;
 }
 
-export async function resolveAuditIntent(input: { prompt: string; creditAgreementUrl?: string }): Promise<{ ticker: string; creditAgreementUrl?: string }> {
+export async function resolveAuditIntent(input: { prompt: string; creditAgreementUrl?: string }): Promise<{ ticker: string; creditAgreementUrl?: string; workflow: "credit_review" | "sec_research" }> {
   const response = await fetch(`${API_URL}/api/audits/intent`, {
     method: "POST",
     headers: {
@@ -33,11 +33,11 @@ export async function resolveAuditIntent(input: { prompt: string; creditAgreemen
     throw new Error(detail || `Intent resolution failed with status ${response.status}`);
   }
 
-  return (await response.json()) as { ticker: string; creditAgreementUrl?: string };
+  return (await response.json()) as { ticker: string; creditAgreementUrl?: string; workflow: "credit_review" | "sec_research" };
 }
 
 export async function runAuditStream(
-  input: { ticker: string; creditAgreementUrl?: string },
+  input: { ticker: string; creditAgreementUrl?: string; prompt?: string; workflow?: "credit_review" | "sec_research" },
   onEvent: (event: AuditStreamEvent) => void
 ): Promise<AuditResponse> {
   const response = await fetch(`${API_URL}/api/audits/report/stream`, {
