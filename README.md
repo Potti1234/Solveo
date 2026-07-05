@@ -16,7 +16,7 @@ Implemented:
 - Vultr OpenAI-compatible chat client.
 - Vultr Vector Store document indexing and semantic retrieval.
 - Covenant keyword scan for credit agreements.
-- SEC filing retrieval for debt and EBITDA inputs.
+- Vultr-first SEC filing extraction for debt, EBITDA, interest coverage, liquidity, and related evidence, with deterministic local parsing only as an offline fallback.
 - Covenant ratio calculator.
 - Python/TypeScript `execute_code` tool.
 - Two script-backed checks: math verification and two-quarter stress projection.
@@ -121,6 +121,8 @@ The backend does not run long-lived scheduled jobs yet. Instead, each audit retu
 
 The UI or a worker process can persist these recommendations, execute them later, and attach Telegram/email notification rules.
 
+For extraction experiments, `ENABLE_VECTOR_INDEXING=true`, `ENABLE_DIRECT_LLM_EXTRACTION=true`, `ENABLE_SLOW_COVENANT_RAG=true`, and `ENABLE_COVENANT_REFINEMENT=true` enable additional remote extraction passes. They are disabled by default because they can add latency and should generally run as background/pre-warm jobs.
+
 ## Environment
 
 Create a root `.env`:
@@ -131,6 +133,13 @@ VULTR_INFERENCE_URL=https://api.vultrinference.com/v1
 VULTR_REASONING_MODEL=VultronRetrieverPrime-Qwen3.5-8B
 VULTR_RETRIEVER_MODEL=VultronRetriever
 VULTR_LOCAL_MODE=false
+VULTR_TIMEOUT_SECONDS=8000
+ENABLE_VECTOR_INDEXING=false
+ENABLE_DIRECT_LLM_EXTRACTION=false
+ENABLE_SLOW_COVENANT_RAG=false
+ENABLE_COVENANT_REFINEMENT=false
+ENABLE_HEADROOM_TREND_SCAN=false
+ENABLE_AMENDMENT_COMPARISON_SCAN=false
 SEC_USER_AGENT=MyHackathonProject (email@example.com)
 DATABASE_PATH=
 WEB_SEARCH_PROVIDER=searxng
@@ -160,8 +169,7 @@ Use Dokploy or Docker Compose and point the backend at `SEARXNG_BASE_URL`.
 
 ## Known Backend Limitations
 
-- Credit-agreement threshold extraction currently handles common leverage and coverage clauses such as `greater than 5.00 to 1.00` and `less than 2.50 to 1.00`. More covenant forms will need additional parsers.
-- SEC HTML table extraction is deterministic and tuned for common 10-Q layouts. More issuers will need additional parsing rules.
+- Credit-agreement and SEC filing extraction are Vultr-first structured extraction steps. Deterministic parsers remain only as fallbacks for local/offline development and for sanity checks.
 - Background schedules are currently recommendations returned by the API; durable workers and notifications are not implemented yet.
 - PDF/scanned-document upload is not implemented yet.
 - Frontend is not implemented yet.

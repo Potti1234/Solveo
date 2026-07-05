@@ -115,6 +115,7 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
     result.keywordScan?.hits.some((hit) => hit.citations.some((citation) => citation.locator.startsWith("document-text-")))
   );
   const documentRulebook = result.rulebook.rules.some((rule) => rule.citations.some((citation) => citation.locator.startsWith("document-text-")));
+  const llmRulebook = result.rulebook.rules.some((rule) => rule.citations.some((citation) => citation.locator.startsWith("llm-")));
   const calls: AuditExplainability["toolCalls"] = [
     {
       order: order++,
@@ -139,7 +140,7 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
     },
     {
       order: order++,
-      tool: documentRulebook ? "document.covenant_parser" : "vultr.rag_chat.prime",
+      tool: llmRulebook ? "vultr.covenant_extractor" : documentRulebook ? "document.covenant_parser" : "vultr.rag_chat.prime",
       purpose: "Extract covenant rule context and plan filing retrieval.",
       inputSummary: result.rulebook.rules.map((rule) => rule.name).join(", "),
       outputSummary: `${result.rulebook.rules.length} covenant rule(s).`
@@ -148,9 +149,10 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
 
   for (const retrieval of result.retrievals) {
     const documentRetrieval = retrieval.citations.some((citation) => citation.locator.startsWith("document-text-"));
+    const llmRetrieval = retrieval.citations.some((citation) => citation.locator.startsWith("llm-"));
     calls.push({
       order: order++,
-      tool: documentRetrieval ? "sec.document_parser" : "vultr.vector_search.prime",
+      tool: llmRetrieval ? "vultr.financial_extractor" : documentRetrieval ? "sec.document_parser" : "vultr.vector_search.prime",
       purpose: retrieval.reasoning,
       inputSummary: retrieval.query,
       outputSummary: `${retrieval.lineItems.length} line item(s), ${retrieval.citations.length} citation(s).`
@@ -159,9 +161,10 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
 
   for (const check of result.reflectiveChecks) {
     const documentCheck = check.citations.some((citation) => citation.locator.startsWith("document-text-"));
+    const llmCheck = check.citations.some((citation) => citation.locator.startsWith("llm-"));
     calls.push({
       order: order++,
-      tool: documentCheck ? "sec.document_parser" : "vultr.reflective_retrieval",
+      tool: llmCheck ? "vultr.financial_extractor" : documentCheck ? "sec.document_parser" : "vultr.reflective_retrieval",
       purpose: check.reasoning,
       inputSummary: check.query,
       outputSummary: `${check.citations.length} citation(s).`

@@ -10,7 +10,7 @@ This folder now keeps only the reusable backend reference points needed by the r
 - Vultr OpenAI-compatible chat client.
 - SEC company ticker sync from `https://www.sec.gov/files/company_tickers.json`.
 - SEC filing lookup and submission-history discovery.
-- Vultr Vector Store document indexing, retrieval, and RAG normalization.
+- Vultr-first document extraction using focused agreement/filing windows, Vector Store retrieval, and RAG normalization, with deterministic local parsing as an offline fallback.
 - Covenant calculation tool.
 - `execute_code` tool for Python/TypeScript analyst scripts.
 - AgentEngine skeleton for Plan -> Retrieve -> Calculate -> Report.
@@ -96,6 +96,8 @@ Vultr integration:
 
 - Chat reasoning uses the OpenAI-compatible `/chat/completions` endpoint.
 - Document retrieval uses Vultr Vector Store: create collection, add chunked SEC document items, search the collection, and use RAG chat for normalization.
+- Covenant and financial line-item extraction first ask Vultr for strict JSON from focused document windows; deterministic parsers are fallback/verification paths, not the primary product path.
+- Optional `ENABLE_VECTOR_INDEXING`, `ENABLE_DIRECT_LLM_EXTRACTION`, `ENABLE_SLOW_COVENANT_RAG`, and `ENABLE_COVENANT_REFINEMENT` enable additional remote extraction passes for experiments or background pre-warming, but they are disabled by default to keep UI runs responsive.
 - Indexed document collection IDs are cached in SQLite by document URL.
 
 Triple-Check & Act:

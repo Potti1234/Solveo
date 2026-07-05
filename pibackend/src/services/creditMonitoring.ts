@@ -60,6 +60,14 @@ async function monitorMaterialEvents(ticker: string): Promise<MaterialEventSigna
 }
 
 async function buildHeadroomTrend(ticker: string, rulebook: CovenantRulebook): Promise<HeadroomTrend> {
+  if (!enabled(process.env.ENABLE_HEADROOM_TREND_SCAN)) {
+    return {
+      points: [],
+      direction: "insufficient_data",
+      summary: "Historical covenant headroom scan is disabled for this run; enable ENABLE_HEADROOM_TREND_SCAN for deeper background analysis."
+    };
+  }
+
   const filings = await findRecentFilings(ticker, ["10-Q", "10-K"], 6);
   const targetRules = rulebook.rules.filter((rule) => rule.metric === "debt_to_ebitda" || rule.metric === "interest_coverage");
   const points: CovenantHeadroomPoint[] = [];
@@ -118,6 +126,14 @@ async function compareCreditAgreementAmendments(
   borrower: string
 ): Promise<AmendmentComparison | null> {
   if (!currentAgreementUrl) return null;
+  if (!enabled(process.env.ENABLE_AMENDMENT_COMPARISON_SCAN)) {
+    return {
+      currentAgreementUrl,
+      priorAgreementUrl: null,
+      changes: []
+    };
+  }
+
   const filings = await findRecentFilings(ticker, ["8-K", "10-K"], 16);
   const candidateUrls: string[] = [];
 
@@ -383,4 +399,8 @@ function severityRank(severity: MaterialEventSignal["severity"]): number {
 function excerptAt(text: string, index: number, length: number): string {
   const start = Math.max(0, index - Math.floor(length / 3));
   return text.slice(start, Math.min(text.length, start + length)).trim();
+}
+
+function enabled(value: string | undefined): boolean {
+  return ["1", "true", "yes"].includes((value ?? "").toLowerCase());
 }

@@ -60,7 +60,7 @@ export class AgentEngine {
       ? await extractCovenantRulebookFromDocument(creditAgreementUrl, company?.title ?? request.ticker.toUpperCase())
       : null;
     if (parsedRulebook) {
-      this.think("rule_extraction", "Extracted covenant rulebook directly from credit agreement text.", {
+      this.think("rule_extraction", "Extracted covenant rulebook from focused credit agreement extraction path.", {
         creditAgreementUrl,
         ruleCount: parsedRulebook.rules.length,
         rules: parsedRulebook.rules.map((rule) => ({ name: rule.name, operator: rule.operator, threshold: rule.threshold }))
@@ -68,7 +68,8 @@ export class AgentEngine {
     }
     const ruleContext =
       !parsedRulebook && creditAgreementUrl && keywordScan ? await extractCovenantRulesContext(creditAgreementUrl, keywordScan) : null;
-    const rulebook = request.rulebook ?? parsedRulebook ?? (await this.extractRulebook(request, creditAgreementUrl, ruleContext));
+    const llmRulebook = !parsedRulebook && !request.rulebook ? await this.extractRulebookWithVultr(request, creditAgreementUrl, ruleContext) : null;
+    const rulebook = request.rulebook ?? llmRulebook ?? parsedRulebook ?? fallbackRulebook(request, creditAgreementUrl, ruleContext);
     const plan = await this.planFilingRetrieval(company?.ticker ?? request.ticker, rulebook, company);
     const filing = await findLatestFiling(request.ticker, plan.filingType);
 
@@ -279,11 +280,13 @@ export class AgentEngine {
     return scan;
   }
 
-  private async extractRulebook(
+  private async extractRulebookWithVultr(
     request: AuditRequest,
     creditAgreementUrl: string | null,
     ruleContext: Awaited<ReturnType<typeof extractCovenantRulesContext>> | null
-  ): Promise<CovenantRulebook> {
+  ): Promise<CovenantRulebook | null> {
+    if (!creditAgreementUrl && !ruleContext) return null;
+
     this.think("rule_extraction", "Extracting financial covenants with VultronRetrieverPrime context.", {
       creditAgreementUrl,
       ruleContext: ruleContext
@@ -299,13 +302,21 @@ export class AgentEngine {
         {
           role: "system",
           content:
-            "Extract loan financial covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations. Think like a quant: identify formulas, units, and conditional covenant logic that may require code verification."
+            "Extract loan financial maintenance covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations. Use metric debt_to_ebitda for Total Net Leverage, Consolidated Leverage, First Lien Net Leverage, Secured Net Leverage, or debt/EBITDA covenants. Use interest_coverage for EBITDA/interest expense covenants. Use minimum_liquidity for liquidity covenants. For maximum leverage phrases such as greater than, not exceed, shall not permit above, use '<='. For minimum coverage phrases such as less than, use '>='. Include exact excerpts as citations. Do not return rules if no numeric threshold is present."
         },
         { role: "user", content: JSON.stringify({ request, creditAgreementUrl, ruleContext }) }
       ],
-      () => fallbackRulebook(request, creditAgreementUrl, ruleContext),
+      () => null,
       isRulebook
-    );
+    ).then((rulebook) => {
+      if (!rulebook || rulebook.rules.length === 0) return null;
+      this.think("rule_extraction", "Vultr extracted covenant rulebook.", {
+        creditAgreementUrl,
+        ruleCount: rulebook.rules.length,
+        rules: rulebook.rules.map((rule) => ({ name: rule.name, operator: rule.operator, threshold: rule.threshold }))
+      });
+      return rulebook;
+    });
   }
 
   private async planFilingRetrieval(

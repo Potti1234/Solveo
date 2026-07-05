@@ -68,15 +68,17 @@ export async function scanCovenantKeywords(documentUrl: string): Promise<Covenan
 }
 
 export async function retrieveFinancialContext(request: RetrieverRequest): Promise<RetrievalBlock> {
-  const documentLineItems = await inferLineItemsFromDocument(request.documentUrl, request.query);
-  if (documentLineItems.length > 0) {
-    return {
-      query: request.query,
-      reasoning: request.reasoning,
-      model: request.model ?? "prime",
-      lineItems: documentLineItems,
-      citations: uniqueCitations(documentLineItems.flatMap((item) => item.citations))
-    };
+  if (enabled(process.env.ENABLE_DIRECT_LLM_EXTRACTION)) {
+    const llmExtraction = await extractLineItemsWithLlm(request);
+    if (llmExtraction.lineItems.length > 0) {
+      return {
+        query: request.query,
+        reasoning: request.reasoning,
+        model: request.model ?? "prime",
+        lineItems: llmExtraction.lineItems,
+        citations: llmExtraction.citations
+      };
+    }
   }
 
   const collection = await ensureDocumentCollection(request.documentUrl);
@@ -117,6 +119,17 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
     };
   }
 
+  const documentLineItems = await inferLineItemsFromDocument(request.documentUrl, request.query);
+  if (documentLineItems.length > 0) {
+    return {
+      query: request.query,
+      reasoning: request.reasoning,
+      model: request.model ?? "prime",
+      lineItems: documentLineItems,
+      citations: uniqueCitations(documentLineItems.flatMap((item) => item.citations))
+    };
+  }
+
   return {
     query: request.query,
     reasoning: request.reasoning,
@@ -134,6 +147,16 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
 
 export async function extractCovenantRulebookFromDocument(documentUrl: string, borrower: string): Promise<CovenantRulebook | null> {
   const documentText = await fetchDocumentText(documentUrl, Number(process.env.COVENANT_EXTRACTION_MAX_DOCUMENT_CHARS ?? 1_500_000));
+  if (enabled(process.env.ENABLE_SLOW_COVENANT_RAG)) {
+    const ragRulebook = await extractCovenantRulebookWithRag(documentUrl, borrower);
+    if (ragRulebook) return ragRulebook;
+  }
+
+  if (enabled(process.env.ENABLE_DIRECT_LLM_EXTRACTION)) {
+    const llmRulebook = await extractCovenantRulebookWithLlm(documentUrl, borrower, documentText);
+    if (llmRulebook) return llmRulebook;
+  }
+
   const section = extractFinancialCovenantSection(documentText);
   if (!section) return null;
 
@@ -162,12 +185,16 @@ export async function extractCovenantRulebookFromDocument(documentUrl: string, b
 
   if (rules.length === 0) return null;
 
-  return {
+  const parsedRulebook = {
     borrower,
     agreementName: "Credit agreement extracted financial covenants",
     extractedAt: new Date().toISOString(),
     rules
   };
+  if (enabled(process.env.ENABLE_COVENANT_REFINEMENT)) {
+    return (await refineParsedRulebookWithLlm(documentUrl, borrower, section, parsedRulebook)) ?? parsedRulebook;
+  }
+  return parsedRulebook;
 }
 
 async function searchExpanded(collectionId: string, query: string): Promise<VectorSearchResult[]> {
@@ -242,6 +269,190 @@ export async function extractCovenantRulesContext(documentUrl: string, keywordSc
 
 function systemCitation(source: string, locator: string, excerpt: string): Citation {
   return { source, locator, excerpt };
+}
+
+async function extractLineItemsWithLlm(request: RetrieverRequest): Promise<RetrieverExtraction> {
+  if (!llmClient.live) return { lineItems: [], citations: [] };
+
+  const documentText = await fetchDocumentText(request.documentUrl, Number(process.env.LLM_EXTRACTION_MAX_DOCUMENT_CHARS ?? 900_000));
+  if (!documentText.trim()) return { lineItems: [], citations: [] };
+
+  const windows = relevantWindows(documentText, extractionTermsForQuery(request.query), Number(process.env.LLM_EXTRACTION_WINDOW_CHARS ?? 2_800), 8);
+  if (windows.length === 0) return { lineItems: [], citations: [] };
+
+  return llmClient.chatJson(
+    [
+      {
+        role: "system",
+        content:
+          "You are a financial document extraction agent. Extract only values directly supported by the provided SEC filing excerpts. Return strict JSON with lineItems and citations. lineItems require name, value, unit, period, citations. Supported line item names include Total Debt, EBITDA, Net Income, Interest Expense, Income Tax Expense, Depreciation, Amortization, Cash, Liquidity. Convert dollars in millions/thousands to absolute USD. If EBITDA is not directly reported, you may derive it only when all required components are present and cite those components. Do not guess missing values."
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          documentUrl: request.documentUrl,
+          query: request.query,
+          reasoning: request.reasoning,
+          excerpts: windows.map((window, index) => ({
+            locator: `llm-window-${index + 1}`,
+            text: window
+          }))
+        })
+      }
+    ],
+    () => ({ lineItems: [], citations: [] }),
+    isExtraction
+  ).then((extraction) => normalizeExtractionCitations(request.documentUrl, "llm-financial-extraction", extraction));
+}
+
+async function extractCovenantRulebookWithLlm(
+  documentUrl: string,
+  borrower: string,
+  documentText: string
+): Promise<CovenantRulebook | null> {
+  if (!llmClient.live || !documentText.trim()) return null;
+
+  const windows = relevantWindows(
+    documentText,
+    [
+      "Financial Covenant",
+      "Financial Covenants",
+      "Total Net Leverage Ratio",
+      "Consolidated Leverage Ratio",
+      "First Lien Net Leverage Ratio",
+      "Secured Net Leverage Ratio",
+      "Interest Coverage Ratio",
+      "Fixed Charge Coverage Ratio",
+      "minimum liquidity",
+      "shall not permit",
+      "not exceed",
+      "less than"
+    ],
+    Number(process.env.LLM_COVENANT_WINDOW_CHARS ?? 3_800),
+    10
+  );
+  if (windows.length === 0) return null;
+
+  const rulebook = await llmClient.chatJson(
+    [
+      {
+        role: "system",
+        content:
+          "You are a credit agreement extraction agent. Extract financial maintenance covenants into strict JSON: borrower, agreementName, extractedAt, rules. Rules require id, name, metric, operator, threshold, unit, period, citations. Use metric debt_to_ebitda for leverage ratios, interest_coverage for EBITDA/interest coverage, minimum_liquidity for liquidity covenants, otherwise custom. For maximum leverage clauses like 'shall not permit ... greater than 5.00 to 1.00', use operator '<='. For minimum coverage clauses like 'shall not permit ... less than 2.50 to 1.00', use operator '>='. Extract conditional step-downs as the active/current threshold only when the date condition is clear from text; otherwise choose the first applicable stated threshold and include the condition in the citation excerpt. Do not invent thresholds."
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          borrower,
+          documentUrl,
+          excerpts: windows.map((window, index) => ({
+            locator: `llm-covenant-window-${index + 1}`,
+            text: window
+          }))
+        })
+      }
+    ],
+    () => null,
+    isCovenantRulebookOrNull
+  );
+
+  return normalizeRulebook(documentUrl, borrower, rulebook, "llm-covenant");
+}
+
+async function extractCovenantRulebookWithRag(documentUrl: string, borrower: string): Promise<CovenantRulebook | null> {
+  if (!llmClient.live) return null;
+  const collection = await ensureDocumentCollection(documentUrl);
+  if (!collection) return null;
+
+  const query = [
+    "Section 7.11 Financial Covenant Total Net Leverage Ratio Interest Coverage Ratio",
+    "shall not permit Total Net Leverage Ratio greater than less than Interest Coverage Ratio",
+    "Financial Covenants Compliance Certificate leverage ratio coverage ratio"
+  ].join(" OR ");
+  const rawResults = await searchExpanded(collection.collectionId, query);
+
+  const rulebook = await llmClient.ragJson(
+    collection.collectionId,
+    [
+      {
+        role: "system",
+        content:
+          "Extract financial maintenance covenant rules from the credit agreement. Return strict JSON: borrower, agreementName, extractedAt, rules. Each rule needs id, name, metric, operator, threshold, unit, period, citations. Use debt_to_ebitda for leverage ratios and interest_coverage for interest coverage. Maximum leverage uses '<='; minimum coverage uses '>='. Include exact source excerpts. Do not invent thresholds."
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          borrower,
+          documentUrl,
+          query,
+          searchResults: rawResults.slice(0, 12)
+        })
+      }
+    ],
+    () => null,
+    isCovenantRulebookOrNull
+  );
+
+  return normalizeRulebook(documentUrl, borrower, rulebook, "llm-covenant-rag");
+}
+
+function normalizeRulebook(
+  documentUrl: string,
+  borrower: string,
+  rulebook: CovenantRulebook | null,
+  locatorPrefix: string
+): CovenantRulebook | null {
+  if (!rulebook || rulebook.rules.length === 0) return null;
+  const rules = rulebook.rules
+    .map((rule) => ({
+      ...rule,
+      id: rule.id || slug(rule.name),
+      threshold: numericValue(rule.threshold),
+      unit: rule.unit || "ratio",
+      period: rule.period || "trailing_twelve_months",
+      citations: normalizeCitations(documentUrl, `${locatorPrefix}-${slug(rule.name)}`, Array.isArray(rule.citations) ? rule.citations : [])
+    }))
+    .filter((rule) => Number.isFinite(rule.threshold));
+
+  if (rules.length === 0) return null;
+  return {
+    borrower: rulebook.borrower || borrower,
+    agreementName: rulebook.agreementName || "Credit agreement financial covenants extracted by Vultr",
+    extractedAt: rulebook.extractedAt || new Date().toISOString(),
+    rules
+  };
+}
+
+async function refineParsedRulebookWithLlm(
+  documentUrl: string,
+  borrower: string,
+  section: string,
+  draftRulebook: CovenantRulebook
+): Promise<CovenantRulebook | null> {
+  if (!llmClient.live) return null;
+
+  const rulebook = await llmClient.chatJson(
+    [
+      {
+        role: "system",
+        content:
+          "You are validating financial covenant extraction from a credit agreement. Given the covenant section text and a draft rulebook, return the corrected strict JSON rulebook. Keep only rules directly supported by the text. Correct operators, thresholds, metric names, periods, and citations. Do not invent new thresholds."
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          borrower,
+          documentUrl,
+          covenantSection: section.slice(0, Number(process.env.LLM_COVENANT_REFINEMENT_CHARS ?? 6_000)),
+          draftRulebook
+        })
+      }
+    ],
+    () => null,
+    isCovenantRulebookOrNull
+  );
+
+  return normalizeRulebook(documentUrl, borrower, rulebook, "llm-covenant-refined");
 }
 
 function keywordHitsFromText(documentUrl: string, text: string, keywords: readonly string[]): CovenantKeywordScan["hits"] {
@@ -322,6 +533,7 @@ type RetrieverExtraction = {
 
 async function ensureDocumentCollection(documentUrl: string): Promise<DocumentCollection | null> {
   if (!llmClient.live) return null;
+  const canIndex = enabled(process.env.ENABLE_VECTOR_INDEXING);
 
   const existing = db
     .select()
@@ -332,10 +544,13 @@ async function ensureDocumentCollection(documentUrl: string): Promise<DocumentCo
   if (existing) {
     const existingItems = await llmClient.listCollectionItems(existing.collectionId);
     if (existingItems.length === 0) {
+      if (!canIndex) return null;
       await indexDocumentIntoCollection(existing.collectionId, documentUrl);
     }
     return { collectionId: existing.collectionId, collectionName: existing.collectionName };
   }
+
+  if (!canIndex) return null;
 
   const documentText = await fetchDocumentText(documentUrl);
   if (!documentText.trim()) return null;
@@ -651,9 +866,114 @@ function isExtraction(value: unknown): value is RetrieverExtraction {
   return (
     Array.isArray(payload.lineItems) &&
     payload.lineItems.every(isLineItem) &&
-    Array.isArray(payload.citations) &&
-    payload.citations.every(isCitation)
+    (payload.citations === undefined || (Array.isArray(payload.citations) && payload.citations.every(isCitation)))
   );
+}
+
+function isCovenantRulebookOrNull(value: unknown): value is CovenantRulebook | null {
+  if (value === null) return true;
+  if (!value || typeof value !== "object") return false;
+  const rulebook = value as CovenantRulebook;
+  return (
+    Array.isArray(rulebook.rules) &&
+    rulebook.rules.every(isCovenantRule)
+  );
+}
+
+function isCovenantRule(value: unknown): value is CovenantRule {
+  if (!value || typeof value !== "object") return false;
+  const rule = value as CovenantRule;
+  return (
+    typeof rule.name === "string" &&
+    ["debt_to_ebitda", "minimum_liquidity", "interest_coverage", "custom"].includes(rule.metric) &&
+    (rule.operator === "<=" || rule.operator === ">=") &&
+    Number.isFinite(numericValue(rule.threshold)) &&
+    (rule.unit === undefined || rule.unit === "ratio" || rule.unit === "usd") &&
+    (rule.period === undefined || ["quarterly", "annual", "trailing_twelve_months"].includes(rule.period)) &&
+    (rule.citations === undefined || (Array.isArray(rule.citations) && rule.citations.every(isCitation)))
+  );
+}
+
+function normalizeExtractionCitations(documentUrl: string, locatorPrefix: string, extraction: RetrieverExtraction): RetrieverExtraction {
+  return {
+    lineItems: extraction.lineItems
+      .map((item) => ({
+        ...item,
+        value: numericValue(item.value),
+        unit: item.unit || "usd",
+        period: item.period || "latest extracted period",
+        citations: normalizeCitations(
+          documentUrl,
+          `${locatorPrefix}-${slug(item.name)}`,
+          Array.isArray(item.citations) && item.citations.length > 0
+            ? item.citations
+            : Array.isArray(extraction.citations)
+              ? extraction.citations
+              : []
+        )
+      }))
+      .filter((item) => Number.isFinite(item.value)),
+    citations: normalizeCitations(documentUrl, locatorPrefix, Array.isArray(extraction.citations) ? extraction.citations : [])
+  };
+}
+
+function normalizeCitations(documentUrl: string, locatorPrefix: string, citations: Citation[]): Citation[] {
+  const normalized = citations
+    .filter((citation) => citation.excerpt?.trim())
+    .map((citation, index) => ({
+      source: citation.source || documentUrl,
+      locator: citation.locator?.startsWith("llm-") ? citation.locator : `${locatorPrefix}-${index + 1}`,
+      excerpt: citation.excerpt.trim().slice(0, 800)
+    }));
+
+  return normalized.length > 0 ? normalized : [systemCitation(documentUrl, `${locatorPrefix}-review`, "The model identified this item but did not return a source excerpt.")];
+}
+
+function relevantWindows(text: string, terms: string[], windowChars: number, limit: number): string[] {
+  const normalizedTerms = terms.map((term) => term.toLowerCase()).filter(Boolean);
+  const candidates: Array<{ index: number; score: number; text: string }> = [];
+  const lower = text.toLowerCase();
+
+  for (const term of normalizedTerms) {
+    let cursor = 0;
+    while (candidates.length < limit * Math.max(normalizedTerms.length, 1) * 2) {
+      const index = lower.indexOf(term, cursor);
+      if (index < 0) break;
+      const start = Math.max(0, index - Math.floor(windowChars / 3));
+      const end = Math.min(text.length, start + windowChars);
+      const window = text.slice(start, end);
+      candidates.push({ index, score: scoreWindow(window, normalizedTerms), text: window });
+      cursor = index + term.length;
+    }
+  }
+
+  if (candidates.length === 0) {
+    return chunkText(text, windowChars).slice(0, Math.min(limit, 3));
+  }
+
+  const selected: string[] = [];
+  for (const candidate of candidates.sort((a, b) => b.score - a.score || a.index - b.index)) {
+    const overlaps = selected.some((existing) => existing.includes(candidate.text.slice(200, 600)) || candidate.text.includes(existing.slice(200, 600)));
+    if (overlaps) continue;
+    selected.push(candidate.text);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
+function scoreWindow(window: string, terms: string[]): number {
+  const lower = window.toLowerCase();
+  return terms.reduce((score, term) => score + (lower.includes(term) ? 1 : 0), 0);
+}
+
+function extractionTermsForQuery(query: string): string[] {
+  const terms = [query];
+  if (/debt/i.test(query)) terms.push("total debt", "long-term debt", "current portion of long-term debt", "notes due");
+  if (/ebitda|net income|interest|tax|depreciation|amortization|coverage/i.test(query)) {
+    terms.push("net income", "interest expense", "income tax expense", "depreciation", "amortization", "adjusted EBITDA", "EBITDA");
+  }
+  if (/liquidity|cash/i.test(query)) terms.push("cash and cash equivalents", "liquidity", "availability", "revolving credit");
+  return terms;
 }
 
 function uniqueCitations(citations: Citation[]): Citation[] {
@@ -685,11 +1005,10 @@ function isLineItem(value: unknown): value is FinancialLineItem {
   const item = value as FinancialLineItem;
   return (
     typeof item.name === "string" &&
-    typeof item.value === "number" &&
-    (item.unit === "usd" || item.unit === "ratio") &&
-    typeof item.period === "string" &&
-    Array.isArray(item.citations) &&
-    item.citations.every(isCitation)
+    Number.isFinite(numericValue(item.value)) &&
+    (item.unit === undefined || item.unit === "usd" || item.unit === "ratio") &&
+    (item.period === undefined || typeof item.period === "string") &&
+    (item.citations === undefined || (Array.isArray(item.citations) && item.citations.every(isCitation)))
   );
 }
 
@@ -697,4 +1016,15 @@ function isCitation(value: unknown): value is Citation {
   if (!value || typeof value !== "object") return false;
   const citation = value as Citation;
   return typeof citation.source === "string" && typeof citation.locator === "string" && typeof citation.excerpt === "string";
+}
+
+function numericValue(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return Number.NaN;
+  const parsed = Number(value.replace(/[$,\s]/g, ""));
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function enabled(value: string | undefined): boolean {
+  return ["1", "true", "yes"].includes((value ?? "").toLowerCase());
 }
