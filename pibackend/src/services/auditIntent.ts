@@ -16,13 +16,50 @@ type LlmIntent = {
 
 export async function resolveAuditIntent(prompt: string, providedCreditAgreementUrl?: string): Promise<AuditIntent | null> {
   const creditAgreementUrl = extractUrl(prompt) ?? providedCreditAgreementUrl;
-  const llmIntent = await llmClient.chatJson<LlmIntent>(
+  const llmIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, false);
+
+  let resolved = await resolveIntentTicker(llmIntent, prompt);
+  let finalIntent = llmIntent;
+
+  if (!resolved) {
+    finalIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, true);
+    resolved = await resolveIntentTicker(finalIntent, prompt);
+  }
+
+  if (!resolved) return null;
+
+  return {
+    ticker: resolved.ticker,
+    creditAgreementUrl: finalIntent.creditAgreementUrl ?? creditAgreementUrl,
+    workflow: finalIntent.workflow ?? classifyWorkflow(prompt, finalIntent.creditAgreementUrl ?? creditAgreementUrl)
+  };
+}
+
+async function extractIntentWithLlm(prompt: string, creditAgreementUrl: string | undefined, retry: boolean): Promise<LlmIntent> {
+  return llmClient.chatJson<LlmIntent>(
     [
       {
         role: "system",
         content:
-          "Extract the public company ticker, optional SEC credit agreement URL, and workflow from an analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl, workflow. Use workflow credit_review only for covenant, credit agreement, debt, leverage, liquidity, compliance certificate, or lender monitoring requests. Use sec_research for general SEC filing questions, business analysis, risk factors, revenue, segments, MD&A, legal proceedings, executive compensation, ownership, or other non-covenant filing research. If no ticker is explicit but a company name is present, set companyName. Do not guess unrelated tickers."
+          "Extract the public company ticker, optional SEC credit agreement URL, and workflow from an analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl, workflow. Use workflow credit_review only for covenant, credit agreement, debt, leverage, liquidity, compliance certificate, or lender monitoring requests. Use sec_research for general SEC filing questions, business analysis, risk factors, revenue, segments, MD&A, legal proceedings, executive compensation, ownership, or other non-covenant filing research. If no ticker is explicit but a company name is present, set companyName. Tickers may be lowercase in the prompt, for example 'from mck' means ticker MCK. Do not guess unrelated tickers."
       },
+      ...(retry
+        ? [
+            {
+              role: "assistant" as const,
+              content: "The first extraction did not resolve against the SEC ticker table. Retry carefully using the candidate tokens."
+            },
+            {
+              role: "user" as const,
+              content: JSON.stringify({
+                prompt,
+                tickerCandidates: extractTickerCandidates(prompt),
+                possibleCompanyName: extractCompanyName(prompt),
+                creditAgreementUrl
+              })
+            }
+          ]
+        : []),
       {
         role: "user",
         content: prompt
@@ -31,15 +68,6 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
     () => fallbackIntent(prompt, creditAgreementUrl),
     isLlmIntent
   );
-
-  const resolved = await resolveIntentTicker(llmIntent, prompt);
-  if (!resolved) return null;
-
-  return {
-    ticker: resolved.ticker,
-    creditAgreementUrl: llmIntent.creditAgreementUrl ?? creditAgreementUrl,
-    workflow: llmIntent.workflow ?? classifyWorkflow(prompt, llmIntent.creditAgreementUrl ?? creditAgreementUrl)
-  };
 }
 
 async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
@@ -86,7 +114,7 @@ function fallbackIntent(prompt: string, creditAgreementUrl?: string): LlmIntent 
 function classifyWorkflow(prompt: string, creditAgreementUrl?: string | null): AuditIntent["workflow"] {
   const normalized = prompt.toLowerCase();
   if (creditAgreementUrl) return "credit_review";
-  if (/\b(covenant|credit agreement|loan agreement|leverage|ebitda|debt|liquidity|compliance certificate|borrower|lender|default|headroom)\b/i.test(normalized)) {
+  if (/\b(covenant|credit review|credit agreement|loan agreement|leverage|ebitda|debt|liquidity|compliance certificate|borrower|lender|default|headroom)\b/i.test(normalized)) {
     return "credit_review";
   }
   return "sec_research";
@@ -97,7 +125,7 @@ function extractTickerCandidates(prompt: string) {
   const ignored = new Set(["THIS", "THE", "WITH", "FOR", "SEC", "URL", "PDF", "FILE", "DEBT", "LOAN"]);
   const candidates: string[] = [];
 
-  for (const match of withoutUrls.matchAll(/\b(?:ticker|symbol|for|company|borrower)\s*[:=]?\s*([A-Za-z][A-Za-z0-9.-]{0,7})\b/gi)) {
+  for (const match of withoutUrls.matchAll(/\b(?:ticker|symbol|for|from|company|borrower)\s*[:=]?\s*([A-Za-z][A-Za-z0-9.-]{0,7})\b/gi)) {
     candidates.push(match[1]);
   }
 
