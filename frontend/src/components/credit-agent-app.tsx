@@ -2,16 +2,14 @@ import * as React from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowUpRight,
   Bot,
   CalendarClock,
   CheckCircle2,
-  Clock3,
+  Code2,
   FileText,
   Loader2,
   MessageSquarePlus,
   Paperclip,
-  Play,
   Search,
   Send,
   ShieldCheck,
@@ -60,6 +58,20 @@ const STORAGE_KEY = "solveo-credit-chat-runs-v1";
 const DEFAULT_AGREEMENT_URL =
   "https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm";
 
+type TimelineKind = "message" | "phase" | "tool" | "retrieval" | "calculation" | "code" | "monitoring" | "report" | "error";
+
+type TimelineItem = {
+  id: string;
+  kind: TimelineKind;
+  title: string;
+  summary: string;
+  timestamp?: string;
+  status?: "queued" | "running" | "complete" | "warning" | "error";
+  message?: ChatMessage;
+  detail?: React.ReactNode;
+  raw?: unknown;
+};
+
 function id(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
@@ -84,7 +96,7 @@ function initialRun(): ChatRun {
         role: "assistant",
         createdAt: timestamp,
         content:
-          "Ready to run the credit monitoring workflow. Ask for a covenant review, attach a debt report if you have one, and provide a ticker or SEC credit agreement URL."
+          "Ready. Give me a ticker, an agreement URL, or a debt report and I will route it through the credit monitoring workflow."
       }
     ]
   };
@@ -115,10 +127,12 @@ function statusClasses(status: ChatRun["status"]) {
   return "border-zinc-200 bg-zinc-50 text-zinc-600";
 }
 
-function messageBubbleVariant(role: ChatMessage["role"]) {
-  if (role === "user") return "default";
-  if (role === "system") return "destructive";
-  return "outline";
+function itemStatusClasses(status?: TimelineItem["status"]) {
+  if (status === "running") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (status === "warning") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "error") return "border-red-200 bg-red-50 text-red-700";
+  if (status === "complete") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-zinc-200 bg-zinc-50 text-zinc-600";
 }
 
 function memoStatusClasses(status?: AuditRun["memo"]["status"]) {
@@ -126,6 +140,12 @@ function memoStatusClasses(status?: AuditRun["memo"]["status"]) {
   if (status === "breach") return "border-red-200 bg-red-50 text-red-800";
   if (status === "needs_review") return "border-amber-200 bg-amber-50 text-amber-800";
   return "border-zinc-200 bg-zinc-50 text-zinc-700";
+}
+
+function messageBubbleVariant(role: ChatMessage["role"]) {
+  if (role === "user") return "default";
+  if (role === "system") return "destructive";
+  return "outline";
 }
 
 function extractTicker(prompt: string, fallback: string) {
@@ -158,15 +178,212 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatKind(kind: TimelineKind) {
+  return kind.replace("_", " ");
+}
+
+function kindIcon(kind: TimelineKind) {
+  if (kind === "tool") return Activity;
+  if (kind === "retrieval") return Search;
+  if (kind === "calculation") return TerminalSquare;
+  if (kind === "code") return Code2;
+  if (kind === "monitoring") return AlertTriangle;
+  if (kind === "report") return FileText;
+  if (kind === "error") return XCircle;
+  return Bot;
+}
+
+function buildTimeline(run: ChatRun): TimelineItem[] {
+  const items: TimelineItem[] = run.messages.map((message) => ({
+    id: message.id,
+    kind: "message",
+    title: message.role === "user" ? "User prompt" : message.role === "system" ? "System" : "Assistant",
+    summary: message.content,
+    timestamp: message.createdAt,
+    status: "complete",
+    message,
+    detail: <MessageDetail message={message} />
+  }));
+
+  if (run.status === "running") {
+    items.push(
+      {
+        id: `${run.id}:running:sec`,
+        kind: "phase",
+        title: "Resolve borrower and SEC filings",
+        summary: "Looking up company identifiers, recent filings, and agreement sources.",
+        status: "running",
+        detail: <PlainDetail lines={["Ticker resolution", "SEC submissions lookup", "Credit agreement discovery"]} />
+      },
+      {
+        id: `${run.id}:running:retrieval`,
+        kind: "retrieval",
+        title: "Retrieve covenant evidence",
+        summary: "Scanning agreement text for covenant rules, definitions, and reporting templates.",
+        status: "queued",
+        detail: <PlainDetail lines={["Financial Covenants", "Consolidated Leverage Ratio", "Fixed Charge Coverage Ratio"]} />
+      },
+      {
+        id: `${run.id}:running:calculation`,
+        kind: "calculation",
+        title: "Run verification scripts",
+        summary: "Preparing covenant math, stress tests, and code-based verification.",
+        status: "queued",
+        detail: <PlainDetail lines={["Extract legal formula", "Extract financial variables", "Execute code", "Compare against threshold"]} />
+      }
+    );
+  }
+
+  const audit = run.audit;
+  if (!audit) {
+    if (run.error) {
+      items.push({
+        id: `${run.id}:error`,
+        kind: "error",
+        title: "Workflow failed",
+        summary: run.error,
+        status: "error",
+        detail: <PlainDetail lines={[run.error]} />
+      });
+    }
+    return items;
+  }
+
+  items.push({
+    id: `${run.id}:plan`,
+    kind: "phase",
+    title: "Workflow plan",
+    summary: audit.plan.rationale,
+    status: "complete",
+    raw: audit.plan,
+    detail: (
+      <div className="space-y-3">
+        <KeyValue label="Ticker" value={audit.plan.ticker} />
+        <KeyValue label="Filing type" value={audit.plan.filingType} />
+        <DetailList title="Retrieval queries" items={audit.plan.retrievalQueries} />
+      </div>
+    )
+  });
+
+  audit.thoughts.forEach((thought, index) => {
+    items.push({
+      id: `${run.id}:thought:${index}`,
+      kind: "phase",
+      title: thought.phase,
+      summary: thought.message,
+      status: "complete",
+      raw: thought,
+      detail: <JsonDetail value={thought.payload ?? thought} />
+    });
+  });
+
+  audit.explainability.toolCalls.forEach((call) => {
+    items.push({
+      id: `${run.id}:tool:${call.order}`,
+      kind: "tool",
+      title: call.tool,
+      summary: call.outputSummary,
+      status: "complete",
+      raw: call,
+      detail: (
+        <div className="space-y-4">
+          <KeyValue label="Purpose" value={call.purpose} />
+          <KeyValue label="Input" value={call.inputSummary} />
+          <KeyValue label="Output" value={call.outputSummary} />
+        </div>
+      )
+    });
+  });
+
+  audit.retrievals.forEach((retrieval, index) => {
+    items.push({
+      id: `${run.id}:retrieval:${index}`,
+      kind: "retrieval",
+      title: `Retrieved evidence for "${retrieval.query}"`,
+      summary: retrieval.reasoning,
+      status: retrieval.lineItems.length ? "complete" : "warning",
+      raw: retrieval,
+      detail: (
+        <div className="space-y-4">
+          <KeyValue label="Reasoning" value={retrieval.reasoning} />
+          <LineItemTable lineItems={retrieval.lineItems} />
+          <CitationList citations={retrieval.citations} />
+        </div>
+      )
+    });
+  });
+
+  audit.explainability.calculationTrail.forEach((calculation, index) => {
+    items.push({
+      id: `${run.id}:calculation:${index}`,
+      kind: "calculation",
+      title: calculation.formula,
+      summary: `${formatRatio(calculation.actual)} ${calculation.operator} ${formatRatio(calculation.threshold)} resulted in ${calculation.result}.`,
+      status: calculation.result === "pass" ? "complete" : "warning",
+      raw: calculation,
+      detail: <CalculationDetail calculation={calculation} />
+    });
+  });
+
+  audit.explainability.codeVerification.forEach((code, index) => {
+    items.push({
+      id: `${run.id}:code:${index}`,
+      kind: "code",
+      title: `${code.language} verification`,
+      summary: code.purpose,
+      status: code.exitCode === 0 ? "complete" : "warning",
+      raw: code,
+      detail: (
+        <div className="space-y-3">
+          <KeyValue label="Purpose" value={code.purpose} />
+          <KeyValue label="Exit code" value={code.exitCode ?? "n/a"} />
+          <pre className="max-h-80 overflow-auto rounded-md bg-zinc-950 p-3 text-xs leading-5 text-zinc-200">{code.stdoutPreview}</pre>
+        </div>
+      )
+    });
+  });
+
+  if (audit.creditMonitoring) {
+    items.push({
+      id: `${run.id}:monitoring`,
+      kind: "monitoring",
+      title: "Early warning monitoring",
+      summary: `${audit.creditMonitoring.earlyWarning.level} risk, score ${audit.creditMonitoring.earlyWarning.score}/100.`,
+      status: audit.creditMonitoring.earlyWarning.level === "low" ? "complete" : "warning",
+      raw: audit.creditMonitoring,
+      detail: <MonitoringDetail monitoring={audit.creditMonitoring} />
+    });
+  }
+
+  items.push({
+    id: `${run.id}:report`,
+    kind: "report",
+    title: "Final credit memo",
+    summary: audit.memo.summary,
+    status: audit.memo.status === "compliant" ? "complete" : "warning",
+    raw: audit.memo,
+    detail: <ReportDetail audit={audit} markdown={run.markdown} />
+  });
+
+  return items;
+}
+
 export function CreditAgentApp() {
   const [runs, setRuns] = React.useState<ChatRun[]>(loadRuns);
   const [activeRunId, setActiveRunId] = React.useState(() => runs[0]?.id ?? "");
+  const [selectedItemId, setSelectedItemId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(runs));
   }, [runs]);
 
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0];
+  const timeline = React.useMemo(() => (activeRun ? buildTimeline(activeRun) : []), [activeRun]);
+  const selectedItem = timeline.find((item) => item.id === selectedItemId) ?? timeline.find((item) => item.kind !== "message") ?? timeline[0];
+
+  React.useEffect(() => {
+    setSelectedItemId(null);
+  }, [activeRunId]);
 
   function updateRun(runId: string, updater: (run: ChatRun) => ChatRun) {
     setRuns((current) => current.map((run) => (run.id === runId ? updater(run) : run)));
@@ -183,6 +400,7 @@ export function CreditAgentApp() {
     ];
     setRuns((current) => [next, ...current]);
     setActiveRunId(next.id);
+    setSelectedItemId(null);
   }
 
   async function submitPrompt(input: { prompt: string; ticker: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) {
@@ -190,6 +408,7 @@ export function CreditAgentApp() {
     const ticker = extractTicker(input.prompt, input.ticker || activeRun.ticker || "MCK").toUpperCase();
     const creditAgreementUrl = extractUrl(input.prompt) ?? input.creditAgreementUrl ?? activeRun.creditAgreementUrl;
     const startedAt = now();
+    setSelectedItemId(`${runId}:running:sec`);
 
     updateRun(runId, (run) => ({
       ...run,
@@ -198,13 +417,15 @@ export function CreditAgentApp() {
       title: `${ticker} credit review`,
       status: "running",
       error: undefined,
+      audit: undefined,
+      markdown: undefined,
       updatedAt: startedAt,
       messages: [
         ...run.messages,
         createMessage("user", input.prompt, input.attachments),
         createMessage(
           "assistant",
-          `Routing ${ticker} through SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and audit memo generation.`
+          `I will route ${ticker} through SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and memo generation.`
         )
       ]
     }));
@@ -225,6 +446,7 @@ export function CreditAgentApp() {
           )
         ]
       }));
+      setSelectedItemId(`${runId}:report`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "The audit workflow failed.";
       updateRun(runId, (run) => ({
@@ -234,6 +456,7 @@ export function CreditAgentApp() {
         updatedAt: now(),
         messages: [...run.messages, createMessage("system", message)]
       }));
+      setSelectedItemId(`${runId}:error`);
     }
   }
 
@@ -245,9 +468,15 @@ export function CreditAgentApp() {
       <SidebarInset>
         <div className="flex min-h-[100dvh] flex-col">
           <RunHeader run={activeRun} />
-          <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_430px]">
-            <ChatWorkspace run={activeRun} onSubmit={submitPrompt} />
-            <EvidencePanel run={activeRun} />
+          <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <ChatWorkspace
+              run={activeRun}
+              timeline={timeline}
+              selectedItemId={selectedItem?.id ?? null}
+              onSelectItem={setSelectedItemId}
+              onSubmit={submitPrompt}
+            />
+            <InspectorPanel run={activeRun} item={selectedItem} />
           </div>
         </div>
       </SidebarInset>
@@ -269,12 +498,12 @@ function RunSidebar({
   const { open } = useSidebar();
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <div className="flex h-full flex-col">
         <SidebarHeader>
           <div className={cn("flex min-w-0 flex-1 items-center gap-3", !open && "justify-center")}>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-zinc-950 text-white">
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="size-4" />
             </div>
             {open ? (
               <div className="min-w-0">
@@ -286,11 +515,11 @@ function RunSidebar({
           <SidebarTrigger />
         </SidebarHeader>
         <SidebarContent>
-          <Button type="button" className={cn("mb-3 w-full", !open && "px-0")} onClick={onCreate}>
+          <Button type="button" className={cn("mx-2 mb-3", !open && "mx-auto px-0")} onClick={onCreate}>
             <MessageSquarePlus />
             {open ? "New run" : null}
           </Button>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1 px-2">
             {runs.map((run) => (
               <button
                 key={run.id}
@@ -299,7 +528,7 @@ function RunSidebar({
                 className={cn(
                   "group rounded-md border p-3 text-left transition-all hover:border-zinc-300 hover:bg-zinc-50",
                   activeRunId === run.id ? "border-zinc-300 bg-zinc-50 shadow-sm" : "border-transparent bg-white",
-                  !open && "flex h-11 items-center justify-center p-0"
+                  !open && "flex h-10 items-center justify-center p-0"
                 )}
                 title={run.title}
               >
@@ -315,7 +544,7 @@ function RunSidebar({
                     </div>
                   </>
                 ) : (
-                  <Bot className="text-zinc-600" />
+                  <Bot className="size-4 text-zinc-600" />
                 )}
               </button>
             ))}
@@ -324,7 +553,7 @@ function RunSidebar({
         <SidebarFooter>
           {open ? (
             <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-600">
-              Backend endpoint: <span className="font-mono text-zinc-900">/api/audits/report</span>
+              Click an agent event in the conversation to inspect sources, inputs, outputs, and code.
             </div>
           ) : null}
         </SidebarFooter>
@@ -356,7 +585,7 @@ function RunHeader({ run }: { run: ChatRun }) {
       </div>
       {run.status === "running" ? (
         <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
-          <Loader2 className="animate-spin" />
+          <Loader2 className="size-3.5 animate-spin" />
           Agent workflow active
         </div>
       ) : null}
@@ -366,9 +595,15 @@ function RunHeader({ run }: { run: ChatRun }) {
 
 function ChatWorkspace({
   run,
+  timeline,
+  selectedItemId,
+  onSelectItem,
   onSubmit
 }: {
   run: ChatRun;
+  timeline: TimelineItem[];
+  selectedItemId: string | null;
+  onSelectItem: (itemId: string) => void;
   onSubmit: (input: { prompt: string; ticker: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) => void;
 }) {
   const [prompt, setPrompt] = React.useState("Analyze this report with the filings and produce a credit officer memo.");
@@ -410,83 +645,25 @@ function ChatWorkspace({
       <MessageScrollerProvider>
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport className="px-4 py-6">
-            <MessageScrollerContent className="mx-auto w-full max-w-4xl gap-5">
-              {run.messages.map((message) => (
-                <MessageScrollerItem key={message.id}>
-                  <Message align={message.role === "user" ? "end" : "start"}>
-                    <MessageContent>
-                      <Bubble
-                        align={message.role === "user" ? "end" : "start"}
-                        variant={messageBubbleVariant(message.role)}
-                        className={message.role === "user" ? "max-w-[86%]" : "max-w-[86%]"}
-                      >
-                        <BubbleContent
-                          className={cn(
-                            "shadow-sm",
-                            message.role === "assistant" && "border-zinc-200 bg-white text-zinc-900",
-                            message.role === "system" && "border-red-200 bg-red-50 text-red-900"
-                          )}
-                        >
-                          {message.content}
-                        </BubbleContent>
-                      </Bubble>
-                      {message.attachments?.length ? (
-                        <div className="grid w-full gap-2">
-                          {message.attachments.map((attachment) => (
-                            <FileAttachmentView key={attachment.id} attachment={attachment} />
-                          ))}
-                        </div>
-                      ) : null}
-                    </MessageContent>
-                  </Message>
+            <MessageScrollerContent className="mx-auto w-full max-w-5xl gap-4">
+              {timeline.map((item) => (
+                <MessageScrollerItem key={item.id} scrollAnchor={item.id === timeline[timeline.length - 1]?.id}>
+                  {item.kind === "message" && item.message ? (
+                    <ChatMessageItem item={item} onSelect={onSelectItem} selected={selectedItemId === item.id} />
+                  ) : (
+                    <AgentEventItem item={item} onSelect={onSelectItem} selected={selectedItemId === item.id} />
+                  )}
                 </MessageScrollerItem>
               ))}
-              {run.status === "running" ? (
-                <>
-                  <MessageScrollerItem>
-                    <Marker variant="separator">
-                      <MarkerIcon>
-                        <Search />
-                      </MarkerIcon>
-                      <MarkerContent>SEC lookup and document retrieval queued</MarkerContent>
-                    </Marker>
-                  </MessageScrollerItem>
-                  <MessageScrollerItem>
-                    <Marker variant="separator">
-                      <MarkerIcon>
-                        <TerminalSquare />
-                      </MarkerIcon>
-                      <MarkerContent>Vultr extraction and covenant math in progress</MarkerContent>
-                    </Marker>
-                  </MessageScrollerItem>
-                  <MessageScrollerItem scrollAnchor>
-                    <Message>
-                      <MessageContent>
-                        <Bubble variant="outline" className="max-w-[86%]">
-                          <BubbleContent className="flex items-center gap-2 border-zinc-200 bg-white text-zinc-600 shadow-sm">
-                            <Loader2 className="animate-spin" />
-                            Calling tools and building the audit trail.
-                          </BubbleContent>
-                        </Bubble>
-                      </MessageContent>
-                    </Message>
-                  </MessageScrollerItem>
-                </>
-              ) : null}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
       <form onSubmit={submit} className="border-t border-zinc-200 bg-white p-4">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
-            <Input
-              value={ticker}
-              onChange={(event) => setTicker(event.target.value.toUpperCase())}
-              placeholder="Ticker"
-              aria-label="Ticker"
-            />
+            <Input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Ticker" aria-label="Ticker" />
             <Input
               value={creditAgreementUrl}
               onChange={(event) => setCreditAgreementUrl(event.target.value)}
@@ -531,6 +708,77 @@ function ChatWorkspace({
   );
 }
 
+function ChatMessageItem({ item, selected, onSelect }: { item: TimelineItem; selected: boolean; onSelect: (itemId: string) => void }) {
+  const message = item.message!;
+  const align = message.role === "user" ? "end" : "start";
+
+  return (
+    <Message align={align}>
+      <MessageContent>
+        <Bubble align={align} variant={messageBubbleVariant(message.role)} className="max-w-[88%]">
+          <BubbleContent
+            asChild
+            className={cn(
+              "cursor-pointer text-left shadow-sm transition-all",
+              selected && "ring-2 ring-zinc-950/15",
+              message.role === "assistant" && "border-zinc-200 bg-white text-zinc-900",
+              message.role === "system" && "border-red-200 bg-red-50 text-red-900"
+            )}
+          >
+            <button type="button" onClick={() => onSelect(item.id)}>
+              {message.content}
+            </button>
+          </BubbleContent>
+        </Bubble>
+        {message.attachments?.length ? (
+          <div className="grid w-full gap-2">
+            {message.attachments.map((attachment) => (
+              <FileAttachmentView key={attachment.id} attachment={attachment} />
+            ))}
+          </div>
+        ) : null}
+      </MessageContent>
+    </Message>
+  );
+}
+
+function AgentEventItem({ item, selected, onSelect }: { item: TimelineItem; selected: boolean; onSelect: (itemId: string) => void }) {
+  const Icon = kindIcon(item.kind);
+  const isRunning = item.status === "running";
+
+  return (
+    <Message align="start">
+      <MessageContent>
+        <Bubble variant="outline" className="max-w-[92%]">
+          <BubbleContent
+            asChild
+            className={cn(
+              "w-full cursor-pointer border-zinc-200 bg-white p-0 text-left shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50",
+              selected && "border-zinc-400 ring-2 ring-zinc-950/10"
+            )}
+          >
+            <button type="button" onClick={() => onSelect(item.id)}>
+              <div className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 p-3">
+                <div className="mt-0.5 flex size-8 items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 text-zinc-600">
+                  {isRunning ? <Loader2 className="size-4 animate-spin text-blue-600" /> : <Icon className="size-4" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-950">{item.title}</span>
+                    <Badge className={itemStatusClasses(item.status)}>{item.status ?? "complete"}</Badge>
+                    <Badge>{formatKind(item.kind)}</Badge>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-zinc-600">{item.summary}</p>
+                </div>
+              </div>
+            </button>
+          </BubbleContent>
+        </Bubble>
+      </MessageContent>
+    </Message>
+  );
+}
+
 function FileAttachmentView({ attachment, onRemove }: { attachment: FileAttachment; onRemove?: () => void }) {
   return (
     <Attachment size="sm" className="max-w-sm">
@@ -552,83 +800,201 @@ function FileAttachmentView({ attachment, onRemove }: { attachment: FileAttachme
   );
 }
 
-function EvidencePanel({ run }: { run: ChatRun }) {
-  const audit = run.audit;
+function InspectorPanel({ run, item }: { run: ChatRun; item?: TimelineItem }) {
+  const Icon = item ? kindIcon(item.kind) : Bot;
 
   return (
     <aside className="min-h-0 overflow-y-auto border-l border-zinc-200 bg-white">
       <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-950">Agent trace</h2>
-            <p className="mt-1 text-xs text-zinc-500">Data sources, calculations, tools, and recommended actions.</p>
+            <h2 className="text-sm font-semibold text-zinc-950">Inspector</h2>
+            <p className="mt-1 text-xs text-zinc-500">Click a conversation event to inspect the evidence behind it.</p>
           </div>
-          {run.status === "running" ? <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> : null}
+          {run.status === "running" ? <Loader2 className="size-4 animate-spin text-blue-600" /> : null}
         </div>
       </div>
-      <div className="flex flex-col divide-y divide-zinc-200">
-        {run.error ? <ErrorBlock error={run.error} /> : null}
-        {audit ? (
-          <>
-            <SummaryBlock audit={audit} />
-            <WorkflowBlock audit={audit} />
-            <CalculationBlock audit={audit} />
-            <MonitoringBlock audit={audit} />
-            <ActionBlock audit={audit} />
-            <ReportBlock markdown={run.markdown} />
-          </>
-        ) : (
-          <EmptyTrace running={run.status === "running"} />
-        )}
-      </div>
+
+      {item ? (
+        <div className="divide-y divide-zinc-200">
+          <section className="p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 text-zinc-600">
+                <Icon className="size-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold text-zinc-950">{item.title}</h3>
+                  <Badge className={itemStatusClasses(item.status)}>{item.status ?? "complete"}</Badge>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-zinc-600">{item.summary}</p>
+              </div>
+            </div>
+          </section>
+          <section className="p-5">{item.detail ?? <JsonDetail value={item.raw ?? item} />}</section>
+          {item.raw ? (
+            <section className="p-5">
+              <SectionTitle icon={Code2} title="Raw payload" />
+              <JsonDetail value={item.raw} />
+            </section>
+          ) : null}
+        </div>
+      ) : (
+        <div className="p-5">
+          <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-4">
+            <div className="text-sm font-medium text-zinc-900">No event selected</div>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">Run the agent, then select a tool call or calculation bubble in the conversation.</p>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
 
-function EmptyTrace({ running }: { running: boolean }) {
-  const items = [
-    ["Resolve ticker", Search],
-    ["Find covenant evidence", FileText],
-    ["Run verification code", TerminalSquare],
-    ["Produce memo", ShieldCheck]
-  ] as const;
-
+function MessageDetail({ message }: { message: ChatMessage }) {
   return (
-    <div className="p-5">
-      <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-4">
-        <div className="text-sm font-medium text-zinc-900">{running ? "Workflow starting" : "No audit result yet"}</div>
-        <div className="mt-3 grid gap-2">
-          {items.map(([label, Icon]) => (
-            <div key={label} className="flex items-center gap-2 text-sm text-zinc-600">
-              <Icon className="text-zinc-400" />
-              {label}
-            </div>
-          ))}
+    <div className="space-y-3">
+      <KeyValue label="Role" value={message.role} />
+      <KeyValue label="Time" value={formatDate(message.createdAt)} />
+      <KeyValue label="Content" value={message.content} />
+      {message.attachments?.length ? (
+        <DetailList title="Attachments" items={message.attachments.map((attachment) => `${attachment.name} (${Math.round(attachment.size / 1024)} KB)`)} />
+      ) : null}
+    </div>
+  );
+}
+
+function PlainDetail({ lines }: { lines: string[] }) {
+  return (
+    <div className="space-y-2">
+      {lines.map((line) => (
+        <div key={line} className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm leading-5 text-zinc-700">
+          {line}
         </div>
+      ))}
+    </div>
+  );
+}
+
+function KeyValue({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">{label}</div>
+      <div className="text-sm leading-6 text-zinc-800">{value}</div>
+    </div>
+  );
+}
+
+function DetailList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div>
+      <div className="mb-2 text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">{title}</div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item} className="rounded-md border border-zinc-200 bg-zinc-50 p-2 text-xs leading-5 text-zinc-700">
+            {item}
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function ErrorBlock({ error }: { error: string }) {
+function LineItemTable({ lineItems }: { lineItems: AuditRun["retrievals"][number]["lineItems"] }) {
+  if (!lineItems.length) return <PlainDetail lines={["No structured line items were extracted for this retrieval."]} />;
+
   return (
-    <section className="p-5">
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        <div className="flex items-center gap-2 font-medium">
-          <XCircle />
-          Workflow failed
+    <div className="space-y-2">
+      <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Line items</div>
+      {lineItems.map((item) => (
+        <div key={`${item.name}-${item.period}`} className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-zinc-900">{item.name}</span>
+            <span className="font-mono text-sm text-zinc-800">{item.unit === "usd" ? `$${compactNumber(item.value)}` : formatRatio(item.value)}</span>
+          </div>
+          <div className="mt-1 text-xs text-zinc-500">{item.period}</div>
         </div>
-        <p className="mt-2 leading-6">{error}</p>
-      </div>
-    </section>
+      ))}
+    </div>
   );
 }
 
-function SummaryBlock({ audit }: { audit: AuditRun }) {
+function CitationList({ citations }: { citations: AuditRun["explainability"]["evidenceTrail"][number][] | AuditRun["retrievals"][number]["citations"] }) {
+  if (!citations.length) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Citations</div>
+      {citations.slice(0, 5).map((citation, index) => (
+        <div key={`${citation.source}-${citation.locator}-${index}`} className="rounded-md border border-zinc-200 bg-white p-3">
+          <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
+            <span className="truncate">{citation.source}</span>
+            <span className="font-mono">{citation.locator}</span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-zinc-700">{citation.excerpt}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CalculationDetail({ calculation }: { calculation: AuditRun["explainability"]["calculationTrail"][number] }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2">
+        <Metric label="Actual" value={`${formatRatio(calculation.actual)}x`} />
+        <Metric label="Threshold" value={`${formatRatio(calculation.threshold)}x`} />
+      </div>
+      <KeyValue label="Formula" value={<code className="text-xs">{calculation.formula}</code>} />
+      <div className="space-y-2">
+        <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Inputs</div>
+        {calculation.inputs.map((input) => (
+          <div key={input.name} className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm">
+            <span className="text-zinc-700">{input.name}</span>
+            <span className="font-mono text-zinc-950">{input.unit === "usd" ? `$${compactNumber(input.value)}` : formatRatio(input.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MonitoringDetail({ monitoring }: { monitoring: NonNullable<AuditRun["creditMonitoring"]> }) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-sm font-medium text-zinc-950">Early warning score</div>
+          <div className="font-mono text-sm font-semibold text-zinc-950">{monitoring.earlyWarning.score}/100</div>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-zinc-200">
+          <div className="h-2 rounded-full bg-zinc-950" style={{ width: `${Math.min(100, monitoring.earlyWarning.score)}%` }} />
+        </div>
+      </div>
+      <DetailList title="Drivers" items={monitoring.earlyWarning.drivers} />
+      <div className="space-y-2">
+        <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Scheduled follow-ups</div>
+        {monitoring.scheduleRecommendations.map((schedule, index) => (
+          <div key={`${schedule.kind}-${index}`} className="rounded-md border border-zinc-200 bg-white p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-zinc-950">
+              <CalendarClock className="size-4 text-zinc-500" />
+              {schedule.kind}
+            </div>
+            <div className="mt-2 text-xs leading-5 text-zinc-500">
+              Every {schedule.cadenceMinutes} minutes from {formatDate(schedule.runAt)}. {schedule.reason}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReportDetail({ audit, markdown }: { audit: AuditRun; markdown?: string }) {
   const primaryCalculation = audit.memo.calculations[0];
 
   return (
-    <section className="p-5">
+    <div className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Decision</div>
@@ -636,15 +1002,25 @@ function SummaryBlock({ audit }: { audit: AuditRun }) {
         </div>
         <Badge className={memoStatusClasses(audit.memo.status)}>{audit.rulebook.borrower}</Badge>
       </div>
-      <p className="mt-3 text-sm leading-6 text-zinc-600">{audit.memo.summary}</p>
+      <p className="text-sm leading-6 text-zinc-600">{audit.memo.summary}</p>
       {primaryCalculation ? (
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Metric label="Actual" value={`${formatRatio(primaryCalculation.actual)}x`} />
           <Metric label="Limit" value={`${formatRatio(primaryCalculation.threshold)}x`} />
           <Metric label="Headroom" value={`${formatRatio(primaryCalculation.threshold - primaryCalculation.actual)}x`} />
         </div>
       ) : null}
-    </section>
+      {audit.actionPlan ? (
+        <div className="space-y-3">
+          <SectionTitle icon={CheckCircle2} title="Action plan" detail={audit.actionPlan.status} />
+          <p className="text-sm leading-6 text-zinc-600">{audit.actionPlan.creditOfficerSummary}</p>
+          <DetailList title="Borrower questions" items={audit.actionPlan.borrowerQuestions} />
+        </div>
+      ) : null}
+      {markdown ? (
+        <pre className="max-h-80 overflow-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-700">{markdown}</pre>
+      ) : null}
+    </div>
   );
 }
 
@@ -654,149 +1030,6 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="text-xs text-zinc-500">{label}</div>
       <div className="mt-1 text-sm font-semibold tabular-nums text-zinc-950">{value}</div>
     </div>
-  );
-}
-
-function WorkflowBlock({ audit }: { audit: AuditRun }) {
-  const toolCalls = audit.explainability.toolCalls;
-
-  return (
-    <section className="p-5">
-      <SectionTitle icon={Activity} title="Tool calls" detail={`${toolCalls.length} calls`} />
-      <div className="mt-4 space-y-3">
-        {toolCalls.map((call) => (
-          <div key={`${call.order}-${call.tool}`} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
-            <div className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600">
-              {call.order}
-            </div>
-            <div className="min-w-0 rounded-md border border-zinc-200 bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="truncate text-sm font-medium text-zinc-950">{call.tool}</div>
-                <Badge>{call.purpose}</Badge>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-500">{call.outputSummary}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function CalculationBlock({ audit }: { audit: AuditRun }) {
-  return (
-    <section className="p-5">
-      <SectionTitle icon={TerminalSquare} title="Calculations" detail={`${audit.explainability.calculationTrail.length} checks`} />
-      <div className="mt-4 space-y-3">
-        {audit.explainability.calculationTrail.map((calculation, index) => (
-          <div key={`${calculation.formula}-${index}`} className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <code className="text-xs text-zinc-700">{calculation.formula}</code>
-              <Badge className={calculation.result === "pass" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}>
-                {calculation.result}
-              </Badge>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Metric label="Actual" value={`${formatRatio(calculation.actual)}x`} />
-              <Metric label="Threshold" value={`${formatRatio(calculation.threshold)}x`} />
-            </div>
-            <div className="mt-3 space-y-1">
-              {calculation.inputs.map((input) => (
-                <div key={input.name} className="flex items-center justify-between gap-2 text-xs text-zinc-500">
-                  <span className="truncate">{input.name}</span>
-                  <span className="font-mono text-zinc-800">{input.unit === "usd" ? `$${compactNumber(input.value)}` : formatRatio(input.value)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-        {audit.explainability.codeVerification.map((code, index) => (
-          <div key={`${code.language}-${index}`} className="rounded-md border border-zinc-200 bg-zinc-950 p-3 text-xs text-zinc-100">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span>{code.language}</span>
-              <span>exit {code.exitCode ?? "n/a"}</span>
-            </div>
-            <pre className="max-h-36 overflow-auto whitespace-pre-wrap leading-5 text-zinc-300">{code.stdoutPreview}</pre>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function MonitoringBlock({ audit }: { audit: AuditRun }) {
-  const monitoring = audit.creditMonitoring;
-  if (!monitoring) return null;
-
-  return (
-    <section className="p-5">
-      <SectionTitle icon={AlertTriangle} title="Monitoring" detail={monitoring.earlyWarning.level} />
-      <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-medium text-zinc-950">Early warning score</div>
-          <div className="font-mono text-sm font-semibold text-zinc-950">{monitoring.earlyWarning.score}/100</div>
-        </div>
-        <div className="mt-3 h-2 rounded-full bg-zinc-200">
-          <div className="h-2 rounded-full bg-zinc-950" style={{ width: `${Math.min(100, monitoring.earlyWarning.score)}%` }} />
-        </div>
-        <div className="mt-3 space-y-1">
-          {monitoring.earlyWarning.drivers.map((driver) => (
-            <div key={driver} className="text-xs leading-5 text-zinc-600">
-              {driver}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-4 space-y-2">
-        {monitoring.scheduleRecommendations.map((schedule, index) => (
-          <div key={`${schedule.kind}-${index}`} className="rounded-md border border-zinc-200 bg-white p-3">
-            <div className="flex items-center gap-2 text-sm font-medium text-zinc-950">
-              <CalendarClock className="text-zinc-500" />
-              {schedule.kind}
-            </div>
-            <div className="mt-2 text-xs leading-5 text-zinc-500">
-              Every {schedule.cadenceMinutes} minutes from {formatDate(schedule.runAt)}. {schedule.reason}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ActionBlock({ audit }: { audit: AuditRun }) {
-  if (!audit.actionPlan) return null;
-
-  return (
-    <section className="p-5">
-      <SectionTitle icon={CheckCircle2} title="Action plan" detail={audit.actionPlan.status} />
-      <p className="mt-3 text-sm leading-6 text-zinc-600">{audit.actionPlan.creditOfficerSummary}</p>
-      <div className="mt-4 space-y-2">
-        {audit.actionPlan.borrowerQuestions.map((question, index) => (
-          <div key={question} className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm leading-5 text-zinc-700">
-            {index + 1}. {question}
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 rounded-md border border-zinc-200 bg-white p-3">
-        <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Draft email</div>
-        <div className="mt-2 text-sm font-medium text-zinc-950">{audit.actionPlan.emailDraft.subject}</div>
-        <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-zinc-600">{audit.actionPlan.emailDraft.body}</p>
-      </div>
-    </section>
-  );
-}
-
-function ReportBlock({ markdown }: { markdown?: string }) {
-  if (!markdown) return null;
-
-  return (
-    <section className="p-5">
-      <SectionTitle icon={FileText} title="Final report" detail="markdown" />
-      <pre className="mt-4 max-h-80 overflow-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-700">
-        {markdown}
-      </pre>
-    </section>
   );
 }
 
@@ -812,10 +1045,18 @@ function SectionTitle({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <Icon className="text-zinc-500" />
+        <Icon className="size-4 text-zinc-500" />
         <h3 className="text-sm font-semibold text-zinc-950">{title}</h3>
       </div>
       {detail ? <Badge>{detail}</Badge> : null}
     </div>
+  );
+}
+
+function JsonDetail({ value }: { value: unknown }) {
+  return (
+    <pre className="max-h-80 overflow-auto rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-700">
+      {JSON.stringify(value, null, 2)}
+    </pre>
   );
 }
