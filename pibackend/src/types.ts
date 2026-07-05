@@ -134,6 +134,8 @@ export type AuditThought = {
 export type AuditRequest = {
   ticker: string;
   creditAgreementUrl?: string;
+  prompt?: string;
+  workflow?: "credit_review" | "sec_research";
   rulebook?: CovenantRulebook;
 };
 

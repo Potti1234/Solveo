@@ -4,12 +4,14 @@ import { llmClient } from "./vultr";
 export type AuditIntent = {
   ticker: string;
   creditAgreementUrl?: string;
+  workflow: "credit_review" | "sec_research";
 };
 
 type LlmIntent = {
   ticker?: string | null;
   companyName?: string | null;
   creditAgreementUrl?: string | null;
+  workflow?: "credit_review" | "sec_research" | null;
 };
 
 export async function resolveAuditIntent(prompt: string, providedCreditAgreementUrl?: string): Promise<AuditIntent | null> {
@@ -19,7 +21,7 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
       {
         role: "system",
         content:
-          "Extract the public company ticker and optional SEC credit agreement URL from a bank analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl. If no ticker is explicit but a company name is present, set companyName. Do not guess unrelated tickers."
+          "Extract the public company ticker, optional SEC credit agreement URL, and workflow from an analyst instruction. Return strict JSON with ticker, companyName, creditAgreementUrl, workflow. Use workflow credit_review only for covenant, credit agreement, debt, leverage, liquidity, compliance certificate, or lender monitoring requests. Use sec_research for general SEC filing questions, business analysis, risk factors, revenue, segments, MD&A, legal proceedings, executive compensation, ownership, or other non-covenant filing research. If no ticker is explicit but a company name is present, set companyName. Do not guess unrelated tickers."
       },
       {
         role: "user",
@@ -35,13 +37,19 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
 
   return {
     ticker: resolved.ticker,
-    creditAgreementUrl: llmIntent.creditAgreementUrl ?? creditAgreementUrl
+    creditAgreementUrl: llmIntent.creditAgreementUrl ?? creditAgreementUrl,
+    workflow: llmIntent.workflow ?? classifyWorkflow(prompt, llmIntent.creditAgreementUrl ?? creditAgreementUrl)
   };
 }
 
 async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
   if (intent.ticker) {
     const company = await resolveCompanyTicker(intent.ticker);
+    if (company) return company;
+  }
+
+  for (const candidate of extractTickerCandidates(prompt)) {
+    const company = await resolveCompanyTicker(candidate);
     if (company) return company;
   }
 
@@ -65,31 +73,51 @@ async function resolveIntentTicker(intent: LlmIntent, prompt: string) {
 }
 
 function fallbackIntent(prompt: string, creditAgreementUrl?: string): LlmIntent {
-  const ticker = extractContextTicker(prompt);
+  const ticker = extractTickerCandidates(prompt)[0] ?? null;
   const companyName = extractCompanyName(prompt);
   return {
     ticker,
     companyName,
-    creditAgreementUrl: extractUrl(prompt) ?? creditAgreementUrl ?? null
+    creditAgreementUrl: extractUrl(prompt) ?? creditAgreementUrl ?? null,
+    workflow: classifyWorkflow(prompt, creditAgreementUrl)
   };
 }
 
-function extractContextTicker(prompt: string) {
-  const direct =
-    prompt.match(/\b(?:ticker|symbol)\s*[:=]?\s*([A-Za-z.]{1,8})\b/i)?.[1] ??
-    prompt.match(/\b(?:analyze|review|check|monitor)\s+([A-Za-z.]{1,8})\b/i)?.[1];
-  if (!direct) return null;
+function classifyWorkflow(prompt: string, creditAgreementUrl?: string | null): AuditIntent["workflow"] {
+  const normalized = prompt.toLowerCase();
+  if (creditAgreementUrl) return "credit_review";
+  if (/\b(covenant|credit agreement|loan agreement|leverage|ebitda|debt|liquidity|compliance certificate|borrower|lender|default|headroom)\b/i.test(normalized)) {
+    return "credit_review";
+  }
+  return "sec_research";
+}
 
-  const normalized = direct.replace(/\./g, "-").toUpperCase();
+function extractTickerCandidates(prompt: string) {
+  const withoutUrls = prompt.replace(/https?:\/\/\S+/g, " ");
   const ignored = new Set(["THIS", "THE", "WITH", "FOR", "SEC", "URL", "PDF", "FILE", "DEBT", "LOAN"]);
-  return ignored.has(normalized) ? null : normalized;
+  const candidates: string[] = [];
+
+  for (const match of withoutUrls.matchAll(/\b(?:ticker|symbol|for|company|borrower)\s*[:=]?\s*([A-Za-z][A-Za-z0-9.-]{0,7})\b/gi)) {
+    candidates.push(match[1]);
+  }
+
+  for (const match of withoutUrls.matchAll(/\b[A-Z][A-Z0-9.-]{0,7}\b/g)) {
+    candidates.push(match[0]);
+  }
+
+  return [...new Set(candidates.map(normalizeTickerCandidate).filter((candidate) => candidate && !ignored.has(candidate)))];
 }
 
 function extractCompanyName(prompt: string) {
   const match =
     prompt.match(/\b(?:company|borrower)\s*[:=]?\s*([A-Za-z][A-Za-z0-9 &.,'-]{2,80})/i)?.[1] ??
-    prompt.match(/\b(?:analyze|review|check|monitor)\s+([A-Z][A-Za-z0-9 &.,'-]{2,80})/i)?.[1];
+    prompt.match(/\bfor\s+([A-Z][A-Za-z0-9 &.,'-]{2,80})/)?.[1] ??
+    prompt.match(/\b(?:analyze|review|check|monitor)\s+([A-Z][A-Za-z0-9 &.,'-]{2,80})/)?.[1];
   return match?.replace(/\s+(with|using|against|from|and)\b.*$/i, "").trim() ?? null;
+}
+
+function normalizeTickerCandidate(value: string) {
+  return value.replace(/\./g, "-").replace(/[^A-Za-z0-9-]/g, "").toUpperCase();
 }
 
 function extractUrl(prompt: string) {
@@ -102,7 +130,8 @@ function isLlmIntent(value: unknown): value is LlmIntent {
   return (
     optionalString(row.ticker) &&
     optionalString(row.companyName) &&
-    optionalString(row.creditAgreementUrl)
+    optionalString(row.creditAgreementUrl) &&
+    (row.workflow === undefined || row.workflow === null || row.workflow === "credit_review" || row.workflow === "sec_research")
   );
 }
 
