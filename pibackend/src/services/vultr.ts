@@ -35,7 +35,7 @@ export class VultrInferenceClient {
     core: process.env.VULTR_RETRIEVER_CORE_MODEL ?? "vultr/VultronRetrieverCore-Qwen3.5-4.5B",
     prime: process.env.VULTR_RETRIEVER_PRIME_MODEL ?? process.env.VULTR_RETRIEVER_MODEL ?? "vultr/VultronRetrieverPrime-Qwen3.5-8B"
   };
-  private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "8000");
+  private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "30000");
   private readonly localMode = ["1", "true", "yes"].includes((process.env.VULTR_LOCAL_MODE ?? "").toLowerCase());
 
   get live(): boolean {
@@ -70,6 +70,7 @@ export class VultrInferenceClient {
           model: this.reasoningModel,
           messages,
           temperature: 0.1,
+          max_tokens: Number(process.env.VULTR_CHAT_MAX_TOKENS ?? "1600"),
           response_format: { type: "json_object" }
         }),
         signal: controller.signal
@@ -80,7 +81,7 @@ export class VultrInferenceClient {
       const content = payload.choices?.[0]?.message?.content;
       if (!content) return fallback();
 
-      const parsed = JSON.parse(content) as unknown;
+      const parsed = parseJsonObject(content);
       return validate(parsed) ? parsed : fallback();
     } catch {
       return fallback();
@@ -113,7 +114,7 @@ export class VultrInferenceClient {
     const content = payload.choices?.[0]?.message?.content;
     if (!content) return fallback();
     try {
-      const parsed = JSON.parse(content) as unknown;
+      const parsed = parseJsonObject(content);
       return validate(parsed) ? parsed : fallback();
     } catch {
       return fallback();
@@ -348,4 +349,18 @@ function stringValue(value: unknown): string | null {
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" ? value : null;
+}
+
+function parseJsonObject(content: string): unknown {
+  try {
+    return JSON.parse(content);
+  } catch {
+    const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1];
+    if (fenced) return JSON.parse(fenced);
+
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start >= 0 && end > start) return JSON.parse(content.slice(start, end + 1));
+    throw new Error("No JSON object found in model response.");
+  }
 }

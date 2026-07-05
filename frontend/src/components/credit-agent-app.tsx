@@ -427,6 +427,59 @@ function naturalPhaseMessage(event: Extract<AuditStreamEvent, { message: string 
   return event.message;
 }
 
+function formatChatReport(audit: AuditRun, markdown: string | undefined, isSecResearch: boolean) {
+  const title = isSecResearch ? `# SEC filing research: ${audit.memo.ticker}` : `# Credit review: ${audit.memo.ticker}`;
+  const documents = audit.explainability.documents.slice(0, 3);
+  const findings = audit.explainability.decisionTrail.borrowerQuestions.length
+    ? audit.explainability.decisionTrail.borrowerQuestions
+    : extractMarkdownBullets(markdown, isSecResearch ? "Key Findings" : "Borrower Questions");
+  const caveats = audit.explainability.caveats.slice(0, 3);
+  const calculations = audit.explainability.calculationTrail.slice(0, 2);
+
+  return [
+    title,
+    "",
+    `## Answer`,
+    audit.memo.summary,
+    "",
+    findings.length ? "## Key insights" : "",
+    ...findings.slice(0, 6).map((finding) => `- ${cleanReportLine(finding)}`),
+    calculations.length ? "" : "",
+    calculations.length ? "## Calculations" : "",
+    ...calculations.map(
+      (calculation) =>
+        `- ${calculation.formula}: ${formatRatio(calculation.actual)} ${calculation.operator} ${formatRatio(calculation.threshold)} (${calculation.result})`
+    ),
+    documents.length ? "" : "",
+    documents.length ? "## Sources" : "",
+    ...documents.map((document) => `- ${document.title}`),
+    caveats.length ? "" : "",
+    caveats.length ? "## Caveats" : "",
+    ...caveats.map((caveat) => `- ${cleanReportLine(caveat)}`),
+    "",
+    "Click this report for the full evidence trail, tool calls, and raw citations."
+  ]
+    .filter((line, index, lines) => line || lines[index - 1])
+    .join("\n");
+}
+
+function extractMarkdownBullets(markdown: string | undefined, heading: string) {
+  if (!markdown) return [];
+  const lines = markdown.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim().toLowerCase() === `## ${heading}`.toLowerCase());
+  if (start < 0) return [];
+  const bullets: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith("## ")) break;
+    if (line.startsWith("- ")) bullets.push(line.slice(2));
+  }
+  return bullets;
+}
+
+function cleanReportLine(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function CreditAgentApp() {
   const [runs, setRuns] = React.useState<ChatRun[]>(loadRuns);
   const [activeRunId, setActiveRunId] = React.useState(() => runs[0]?.id ?? "");
@@ -522,9 +575,7 @@ export function CreditAgentApp() {
           ...run.messages,
           createMessage(
             "assistant",
-            isSecResearch
-              ? `Finished ${ticker} SEC research. ${response.audit.memo.summary}`
-              : `Finished ${ticker}. Status: ${response.audit.memo.status.replace("_", " ")}. ${response.audit.memo.summary}`
+            formatChatReport(response.audit, response.markdown, isSecResearch)
           )
         ]
       }));
@@ -841,7 +892,7 @@ function ChatMessageItem({ item, selected, onSelect }: { item: TimelineItem; sel
             )}
           >
             <button type="button" onClick={() => onSelect(item.id)}>
-              {message.content}
+              <ChatBubbleText content={message.content} />
             </button>
           </BubbleContent>
         </Bubble>
@@ -854,6 +905,25 @@ function ChatMessageItem({ item, selected, onSelect }: { item: TimelineItem; sel
         ) : null}
       </MessageContent>
     </Message>
+  );
+}
+
+function ChatBubbleText({ content }: { content: string }) {
+  const lines = content.split(/\r?\n/);
+  if (!lines.some((line) => line.startsWith("#") || line.startsWith("- ") || /^\d+\./.test(line))) return <>{content}</>;
+
+  return (
+    <div className="space-y-2 text-left">
+      {lines.map((line, index) => {
+        const key = `${index}-${line}`;
+        if (!line.trim()) return <div key={key} className="h-1" />;
+        if (line.startsWith("### ")) return <div key={key} className="pt-1 text-sm font-semibold text-zinc-950">{line.slice(4)}</div>;
+        if (line.startsWith("## ")) return <div key={key} className="pt-2 text-sm font-semibold text-zinc-950">{line.slice(3)}</div>;
+        if (line.startsWith("# ")) return <div key={key} className="text-base font-semibold leading-6 text-zinc-950">{line.slice(2)}</div>;
+        if (line.startsWith("- ")) return <div key={key} className="pl-3 text-sm leading-6 text-zinc-700">• {line.slice(2)}</div>;
+        return <p key={key} className="text-sm leading-6 text-zinc-700">{line}</p>;
+      })}
+    </div>
   );
 }
 

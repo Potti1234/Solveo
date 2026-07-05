@@ -183,6 +183,12 @@ export type AuditRun = {
       timedOut: boolean;
       stdoutPreview: string;
     }>;
+    decisionTrail: {
+      status: "compliant" | "breach" | "needs_review";
+      summary: string;
+      actionStatus?: "pass" | "warning" | "fail";
+      borrowerQuestions: string[];
+    };
     caveats: string[];
   };
 };
