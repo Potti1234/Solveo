@@ -21,7 +21,7 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
   let resolved = await resolveIntentTicker(llmIntent, prompt);
   let finalIntent = llmIntent;
 
-  if (!resolved) {
+  if (!resolved || !finalIntent.workflow) {
     finalIntent = await extractIntentWithLlm(prompt, creditAgreementUrl, true);
     resolved = await resolveIntentTicker(finalIntent, prompt);
   }
@@ -31,7 +31,7 @@ export async function resolveAuditIntent(prompt: string, providedCreditAgreement
   return {
     ticker: resolved.ticker,
     creditAgreementUrl: finalIntent.creditAgreementUrl ?? creditAgreementUrl,
-    workflow: finalIntent.workflow ?? classifyWorkflow(prompt, finalIntent.creditAgreementUrl ?? creditAgreementUrl)
+    workflow: finalIntent.workflow ?? "credit_review"
   };
 }
 
@@ -107,17 +107,8 @@ function fallbackIntent(prompt: string, creditAgreementUrl?: string): LlmIntent 
     ticker,
     companyName,
     creditAgreementUrl: extractUrl(prompt) ?? creditAgreementUrl ?? null,
-    workflow: classifyWorkflow(prompt, creditAgreementUrl)
+    workflow: null
   };
-}
-
-function classifyWorkflow(prompt: string, creditAgreementUrl?: string | null): AuditIntent["workflow"] {
-  const normalized = prompt.toLowerCase();
-  if (creditAgreementUrl) return "credit_review";
-  if (/\b(covenant|credit review|credit agreement|loan agreement|leverage|ebitda|debt|liquidity|compliance certificate|borrower|lender|default|headroom)\b/i.test(normalized)) {
-    return "credit_review";
-  }
-  return "sec_research";
 }
 
 function extractTickerCandidates(prompt: string) {
