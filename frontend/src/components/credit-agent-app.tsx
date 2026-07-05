@@ -31,7 +31,6 @@ import {
 import { Badge } from "./ui/badge";
 import { Bubble, BubbleContent } from "./ui/bubble";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Marker, MarkerContent, MarkerIcon } from "./ui/marker";
 import { Message, MessageContent } from "./ui/message";
 import {
@@ -176,6 +175,19 @@ function formatDate(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function formatScheduleCadence(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} hr`;
+  return `${Math.round(minutes / (24 * 60))} day`;
+}
+
+function formatScheduleKind(kind: string) {
+  return kind
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatKind(kind: TimelineKind) {
@@ -536,7 +548,7 @@ export function CreditAgentApp() {
 
   return (
     <SidebarProvider>
-      <RunSidebar runs={runs} activeRunId={activeRun.id} onSelect={setActiveRunId} onCreate={createRun} />
+      <RunSidebar runs={runs} activeRun={activeRun} activeRunId={activeRun.id} onSelect={setActiveRunId} onCreate={createRun} />
       <SidebarInset>
         <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
           <RunHeader run={activeRun} />
@@ -558,16 +570,19 @@ export function CreditAgentApp() {
 
 function RunSidebar({
   runs,
+  activeRun,
   activeRunId,
   onSelect,
   onCreate
 }: {
   runs: ChatRun[];
+  activeRun: ChatRun;
   activeRunId: string;
   onSelect: (runId: string) => void;
   onCreate: () => void;
 }) {
   const { open } = useSidebar();
+  const schedules = activeRun.audit?.creditMonitoring?.scheduleRecommendations ?? [];
 
   return (
     <Sidebar collapsible="icon">
@@ -599,7 +614,7 @@ function RunSidebar({
                 onClick={() => onSelect(run.id)}
                 className={cn(
                   "group rounded-md border p-3 text-left transition-all hover:border-zinc-300 hover:bg-zinc-50",
-                  activeRunId === run.id ? "border-zinc-300 bg-zinc-50 shadow-sm" : "border-transparent bg-white",
+                  activeRunId === run.id ? "border-zinc-300 bg-zinc-50" : "border-transparent bg-white",
                   !open && "flex h-10 items-center justify-center p-0"
                 )}
                 title={run.title}
@@ -621,6 +636,37 @@ function RunSidebar({
               </button>
             ))}
           </div>
+          {open ? (
+            <div className="mt-5 border-t border-zinc-200 px-2 pt-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">Follow-up agents</div>
+                <Badge className="border-zinc-200 bg-zinc-50 text-zinc-600">{schedules.length || "none"}</Badge>
+              </div>
+              <div className="space-y-2">
+                {schedules.length ? (
+                  schedules.slice(0, 4).map((schedule, index) => (
+                    <div key={`${schedule.kind}-${index}`} className="rounded-md border border-zinc-200 bg-white p-3">
+                      <div className="flex items-start gap-2">
+                        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 text-zinc-500">
+                          <CalendarClock className="size-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-zinc-950">{formatScheduleKind(schedule.kind)}</div>
+                          <div className="mt-1 text-xs leading-5 text-zinc-500">
+                            Every {formatScheduleCadence(schedule.cadenceMinutes)} from {formatDate(schedule.runAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-3 text-xs leading-5 text-zinc-600">
+                    Follow-up scans will appear here after a completed run.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
         </SidebarContent>
         <SidebarFooter>
           {open ? (
@@ -734,21 +780,39 @@ function ChatWorkspace({
       </MessageScrollerProvider>
       <form onSubmit={submit} className="shrink-0 border-t border-zinc-200 bg-white p-4">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
-            <Input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Ticker" aria-label="Ticker" />
-            <Input
-              value={creditAgreementUrl}
-              onChange={(event) => setCreditAgreementUrl(event.target.value)}
-              placeholder="Credit agreement URL, optional"
-              aria-label="Credit agreement URL"
+          <div className="rounded-xl border border-zinc-200 bg-white p-3">
+            <Textarea
+              value={prompt}
+              onChange={(event) => {
+                const value = event.target.value;
+                setPrompt(value);
+                const nextTicker = extractTicker(value, run.ticker);
+                setTicker(nextTicker);
+                setCreditAgreementUrl(extractUrl(value) ?? run.creditAgreementUrl ?? "");
+              }}
+              placeholder="Ask the agent in plain language. Example: Analyze MCK with this credit agreement URL and prepare a covenant risk plan."
+              aria-label="Prompt"
+              className="min-h-24 border-0 px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
             />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-zinc-500">
+                <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700">Ticker {ticker}</Badge>
+                {creditAgreementUrl ? <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700">Agreement detected</Badge> : null}
+                <span className="truncate">Use free text, paste SEC links, or attach a debt report.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input ref={fileInputRef} type="file" className="hidden" multiple onChange={(event) => handleFiles(event.target.files)} />
+                <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
+                  <Paperclip />
+                  Attach report
+                </Button>
+                <Button type="submit" disabled={run.status === "running" || !prompt.trim()}>
+                  {run.status === "running" ? <Loader2 className="animate-spin" /> : <Send />}
+                  Run agent
+                </Button>
+              </div>
+            </div>
           </div>
-          <Textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Ask the agent to analyze a borrower, filing, or debt report..."
-            aria-label="Prompt"
-          />
           {attachments.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {attachments.map((attachment) => (
@@ -760,20 +824,6 @@ function ChatWorkspace({
               ))}
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <input ref={fileInputRef} type="file" className="hidden" multiple onChange={(event) => handleFiles(event.target.files)} />
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Paperclip />
-                Attach report
-              </Button>
-              <span className="text-xs text-zinc-500">Files stay with the chat context for this run.</span>
-            </div>
-            <Button type="submit" disabled={run.status === "running" || !prompt.trim()}>
-              {run.status === "running" ? <Loader2 className="animate-spin" /> : <Send />}
-              Run agent
-            </Button>
-          </div>
         </div>
       </form>
     </section>
@@ -791,7 +841,7 @@ function ChatMessageItem({ item, selected, onSelect }: { item: TimelineItem; sel
           <BubbleContent
             asChild
             className={cn(
-              "cursor-pointer text-left shadow-sm transition-all",
+              "cursor-pointer text-left transition-all",
               selected && "ring-2 ring-zinc-950/15",
               message.role === "assistant" && "border-zinc-200 bg-white text-zinc-900",
               message.role === "system" && "border-red-200 bg-red-50 text-red-900"
@@ -825,7 +875,7 @@ function AgentEventItem({ item, selected, onSelect }: { item: TimelineItem; sele
           <BubbleContent
             asChild
             className={cn(
-              "w-full cursor-pointer border-zinc-200 bg-white p-0 text-left shadow-sm transition-all hover:border-zinc-300 hover:bg-zinc-50",
+              "w-full cursor-pointer border-zinc-200 bg-white p-0 text-left transition-all hover:border-zinc-300 hover:bg-zinc-50",
               selected && "border-zinc-400 ring-2 ring-zinc-950/10"
             )}
           >

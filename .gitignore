@@ -21,3 +21,6 @@ pibackend/*.log
 pibackend/drizzle/
 infra/searxng/.env
 infra/searxng/searxng/settings.yml
+.artifacts/
+frontend/test-results/
+frontend/playwright-report/
