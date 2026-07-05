@@ -466,9 +466,9 @@ export function CreditAgentApp() {
     <SidebarProvider>
       <RunSidebar runs={runs} activeRunId={activeRun.id} onSelect={setActiveRunId} onCreate={createRun} />
       <SidebarInset>
-        <div className="flex min-h-[100dvh] flex-col">
+        <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden">
           <RunHeader run={activeRun} />
-          <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]">
             <ChatWorkspace
               run={activeRun}
               timeline={timeline}
@@ -641,9 +641,9 @@ function ChatWorkspace({
   }
 
   return (
-    <section className="flex min-h-0 flex-col bg-zinc-50">
+    <section className="flex min-h-0 overflow-hidden flex-col bg-zinc-50">
       <MessageScrollerProvider>
-        <MessageScroller className="min-h-0 flex-1">
+        <MessageScroller className="min-h-0 flex-1 overflow-hidden">
           <MessageScrollerViewport className="px-4 py-6">
             <MessageScrollerContent className="mx-auto w-full max-w-5xl gap-4">
               {timeline.map((item) => (
@@ -660,7 +660,7 @@ function ChatWorkspace({
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>
-      <form onSubmit={submit} className="border-t border-zinc-200 bg-white p-4">
+      <form onSubmit={submit} className="shrink-0 border-t border-zinc-200 bg-white p-4">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
             <Input value={ticker} onChange={(event) => setTicker(event.target.value.toUpperCase())} placeholder="Ticker" aria-label="Ticker" />
@@ -804,8 +804,8 @@ function InspectorPanel({ run, item }: { run: ChatRun; item?: TimelineItem }) {
   const Icon = item ? kindIcon(item.kind) : Bot;
 
   return (
-    <aside className="min-h-0 overflow-y-auto border-l border-zinc-200 bg-white">
-      <div className="sticky top-0 z-10 border-b border-zinc-200 bg-white px-5 py-4">
+    <aside className="hidden min-h-0 overflow-hidden border-l border-zinc-200 bg-white xl:flex xl:flex-col">
+      <div className="shrink-0 border-b border-zinc-200 bg-white px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-zinc-950">Inspector</h2>
@@ -816,7 +816,7 @@ function InspectorPanel({ run, item }: { run: ChatRun; item?: TimelineItem }) {
       </div>
 
       {item ? (
-        <div className="divide-y divide-zinc-200">
+        <div className="min-h-0 overflow-y-auto divide-y divide-zinc-200">
           <section className="p-5">
             <div className="flex items-start gap-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 bg-zinc-50 text-zinc-600">
