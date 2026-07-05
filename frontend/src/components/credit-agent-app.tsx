@@ -16,8 +16,8 @@ import {
   TerminalSquare,
   XCircle
 } from "lucide-react";
-import { runAudit } from "../lib/api";
-import type { AuditRun, ChatMessage, ChatRun, FileAttachment } from "../lib/types";
+import { runAuditStream } from "../lib/api";
+import type { AuditRun, AuditStreamEvent, ChatMessage, ChatRun, FileAttachment } from "../lib/types";
 import { cn, compactNumber, formatRatio } from "../lib/utils";
 import {
   Attachment,
@@ -205,7 +205,29 @@ function buildTimeline(run: ChatRun): TimelineItem[] {
     detail: <MessageDetail message={message} />
   }));
 
-  if (run.status === "running") {
+  for (const event of run.streamEvents ?? []) {
+    if (event.type === "result" || event.type === "done") continue;
+    const isHeartbeat = event.type === "heartbeat";
+    const isError = event.type === "error";
+    items.push({
+      id: `${run.id}:stream:${event.type}:${event.createdAt}:${event.phase}`,
+      kind: isError ? "error" : isHeartbeat ? "phase" : phaseToKind(event.phase),
+      title: isHeartbeat ? "Still working" : naturalPhaseTitle(event.phase),
+      summary: naturalPhaseMessage(event),
+      timestamp: event.createdAt,
+      status: isError ? "error" : isHeartbeat ? "running" : "complete",
+      raw: event,
+      detail: (
+        <div className="space-y-3">
+          <KeyValue label="Phase" value={event.phase} />
+          <KeyValue label="Message" value={event.message} />
+          {"payload" in event && event.payload ? <JsonDetail value={event.payload} /> : null}
+        </div>
+      )
+    });
+  }
+
+  if (run.status === "running" && !(run.streamEvents?.length)) {
     items.push(
       {
         id: `${run.id}:running:sec`,
@@ -368,6 +390,48 @@ function buildTimeline(run: ChatRun): TimelineItem[] {
   return items;
 }
 
+function phaseToKind(phase: string): TimelineKind {
+  if (/retrieval|keyword|exhibit|sec|planning|rule/i.test(phase)) return "retrieval";
+  if (/calculation/i.test(phase)) return "calculation";
+  if (/code/i.test(phase)) return "code";
+  if (/monitoring/i.test(phase)) return "monitoring";
+  if (/report/i.test(phase)) return "report";
+  return "phase";
+}
+
+function naturalPhaseTitle(phase: string) {
+  const titles: Record<string, string> = {
+    start: "Starting the credit review",
+    sec_lookup: "Looking up SEC company data",
+    exhibit_discovery: "Finding the credit agreement",
+    keyword_scan: "Scanning covenant sections",
+    rule_extraction: "Extracting covenant rules",
+    planning: "Planning financial evidence retrieval",
+    retrieval: "Retrieving financial evidence",
+    calculation: "Calculating covenant compliance",
+    code_execution: "Running verification code",
+    monitoring: "Checking current risk signals",
+    reporting: "Writing the credit memo"
+  };
+  return titles[phase] ?? phase.replace(/_/g, " ");
+}
+
+function naturalPhaseMessage(event: Extract<AuditStreamEvent, { message: string }>) {
+  if (event.type === "heartbeat") return "This step is taking longer because the agent is reading filings, querying external services, or waiting on model extraction.";
+  const payload = "payload" in event ? event.payload : undefined;
+  if (event.phase === "sec_lookup" && payload?.ticker) return `I am resolving ${String(payload.ticker).toUpperCase()} against the SEC company index.`;
+  if (event.phase === "exhibit_discovery") return "I am checking recent 10-K and 8-K filings for a usable credit agreement exhibit.";
+  if (event.phase === "keyword_scan") return "I am scanning the agreement for financial covenants, leverage ratios, coverage ratios, and compliance certificate language.";
+  if (event.phase === "rule_extraction") return "I am turning the legal covenant language into structured rules with thresholds and citations.";
+  if (event.phase === "planning") return "I am deciding which filing tables and line items are needed to test the covenant.";
+  if (event.phase === "retrieval" && payload?.query) return `I am retrieving evidence for: ${String(payload.query)}.`;
+  if (event.phase === "calculation") return "I am computing the covenant ratios from the extracted financial variables.";
+  if (event.phase === "code_execution") return event.message.includes("Executed") ? "I ran the verification script and captured the output." : "I am writing a small script to verify the math and stress the next two quarters.";
+  if (event.phase === "monitoring") return "I am checking 8-K events, historical headroom, amendments, and follow-up schedules.";
+  if (event.phase === "reporting") return "I am assembling the final credit memo with citations, caveats, and borrower questions.";
+  return event.message;
+}
+
 export function CreditAgentApp() {
   const [runs, setRuns] = React.useState<ChatRun[]>(loadRuns);
   const [activeRunId, setActiveRunId] = React.useState(() => runs[0]?.id ?? "");
@@ -419,6 +483,7 @@ export function CreditAgentApp() {
       error: undefined,
       audit: undefined,
       markdown: undefined,
+      streamEvents: [],
       updatedAt: startedAt,
       messages: [
         ...run.messages,
@@ -431,7 +496,14 @@ export function CreditAgentApp() {
     }));
 
     try {
-      const response = await runAudit({ ticker, creditAgreementUrl });
+      const response = await runAuditStream({ ticker, creditAgreementUrl }, (event) => {
+        if (event.type === "done") return;
+        updateRun(runId, (run) => ({
+          ...run,
+          streamEvents: [...(run.streamEvents ?? []), event],
+          updatedAt: "createdAt" in event ? event.createdAt : now()
+        }));
+      });
       updateRun(runId, (run) => ({
         ...run,
         status: "complete",

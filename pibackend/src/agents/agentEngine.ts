@@ -29,6 +29,8 @@ import { webSearch } from "../tools/webSearch";
 export class AgentEngine {
   private readonly thoughts: AuditThought[] = [];
 
+  constructor(private readonly onThought?: (thought: AuditThought) => void) {}
+
   async run(request: AuditRequest): Promise<AuditRunResult> {
     this.think("sec_lookup", "Resolving ticker against SEC company ticker index.", { ticker: request.ticker });
     const company = await resolveCompanyTicker(request.ticker);
@@ -357,7 +359,9 @@ export class AgentEngine {
   }
 
   private think(phase: AuditThought["phase"], message: string, payload?: Record<string, unknown>) {
-    this.thoughts.push({ phase, message, payload });
+    const thought = { phase, message, payload };
+    this.thoughts.push(thought);
+    this.onThought?.(thought);
   }
 }
 

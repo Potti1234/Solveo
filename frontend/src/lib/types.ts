@@ -28,6 +28,7 @@ export type ChatRun = {
   messages: ChatMessage[];
   audit?: AuditResponse["audit"];
   markdown?: string;
+  streamEvents?: AuditStreamEvent[];
   error?: string;
 };
 
@@ -35,6 +36,31 @@ export type AuditResponse = {
   audit: AuditRun;
   markdown: string;
 };
+
+export type AuditStreamEvent =
+  | {
+      type: "start" | "thought" | "heartbeat";
+      phase: string;
+      message: string;
+      payload?: Record<string, unknown>;
+      createdAt: string;
+    }
+  | {
+      type: "result";
+      audit: AuditRun;
+      markdown: string;
+      createdAt: string;
+    }
+  | {
+      type: "error";
+      phase: string;
+      message: string;
+      createdAt: string;
+    }
+  | {
+      type: "done";
+      createdAt: string;
+    };
 
 export type AuditRun = {
   thoughts: Array<{
