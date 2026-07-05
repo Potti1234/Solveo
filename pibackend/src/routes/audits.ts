@@ -50,11 +50,18 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
 
   const encoder = new TextEncoder();
   let heartbeat: ReturnType<typeof setInterval> | null = null;
+  let closed = false;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+          if (heartbeat) clearInterval(heartbeat);
+        }
       };
 
       const startedAt = new Date().toISOString();
@@ -98,11 +105,18 @@ export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent",
         })
         .finally(() => {
           if (heartbeat) clearInterval(heartbeat);
-          send("done", { createdAt: new Date().toISOString() });
-          controller.close();
+          if (!closed) {
+            send("done", { createdAt: new Date().toISOString() });
+            try {
+              controller.close();
+            } catch {
+              closed = true;
+            }
+          }
         });
     },
     cancel() {
+      closed = true;
       if (heartbeat) clearInterval(heartbeat);
     }
   });
