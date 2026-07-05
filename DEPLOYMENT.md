@@ -20,6 +20,7 @@ https://solveo.example.com -> frontend:80
 ```
 
 The frontend calls `/api/...` on the same domain, and Nginx proxies those requests to the backend container.
+SearXNG is not deployed by this Compose file; point `SEARXNG_BASE_URL` at your existing SearXNG instance.
 
 ## Required environment variables
 
@@ -46,10 +47,7 @@ SEC_API_KEY=your_sec_api_key
 SEC_USER_AGENT=Solveo (your-email@example.com)
 
 WEB_SEARCH_PROVIDER=searxng
-SEARXNG_BASE_URL=http://searxng:8080
-SEARXNG_PUBLIC_URL=http://searxng:8080/
-SEARXNG_INSTANCE_NAME=Solveo Search
-SEARXNG_SECRET_KEY=replace-with-a-random-hex-secret
+SEARXNG_BASE_URL=https://your-existing-searxng.example.com
 
 ENABLE_VECTOR_INDEXING=false
 ENABLE_DIRECT_LLM_EXTRACTION=false
@@ -60,12 +58,6 @@ ENABLE_AMENDMENT_COMPARISON_SCAN=false
 CODE_EXECUTION_TIMEOUT_MS=8000
 CODE_EXECUTION_MAX_CODE_BYTES=30000
 CODE_EXECUTION_MAX_OUTPUT_BYTES=20000
-```
-
-Generate `SEARXNG_SECRET_KEY` on your VPS with:
-
-```bash
-openssl rand -hex 32
 ```
 
 ## Persistent data
