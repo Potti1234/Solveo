@@ -21,10 +21,29 @@ import {
 import { runAudit } from "../lib/api";
 import type { AuditRun, ChatMessage, ChatRun, FileAttachment } from "../lib/types";
 import { cn, compactNumber, formatRatio } from "../lib/utils";
-import { Attachment, Bubble, Marker, Message, MessageScroller } from "./ui/chat";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle
+} from "./ui/attachment";
 import { Badge } from "./ui/badge";
+import { Bubble, BubbleContent } from "./ui/bubble";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Marker, MarkerContent, MarkerIcon } from "./ui/marker";
+import { Message, MessageContent } from "./ui/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport
+} from "./ui/message-scroller";
 import {
   Sidebar,
   SidebarContent,
@@ -94,6 +113,12 @@ function statusClasses(status: ChatRun["status"]) {
   if (status === "complete") return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (status === "error") return "border-red-200 bg-red-50 text-red-700";
   return "border-zinc-200 bg-zinc-50 text-zinc-600";
+}
+
+function messageBubbleVariant(role: ChatMessage["role"]) {
+  if (role === "user") return "default";
+  if (role === "system") return "destructive";
+  return "outline";
 }
 
 function memoStatusClasses(status?: AuditRun["memo"]["status"]) {
@@ -262,7 +287,7 @@ function RunSidebar({
         </SidebarHeader>
         <SidebarContent>
           <Button type="button" className={cn("mb-3 w-full", !open && "px-0")} onClick={onCreate}>
-            <MessageSquarePlus className="h-4 w-4" />
+            <MessageSquarePlus />
             {open ? "New run" : null}
           </Button>
           <div className="flex flex-col gap-2">
@@ -290,7 +315,7 @@ function RunSidebar({
                     </div>
                   </>
                 ) : (
-                  <Bot className="h-4 w-4 text-zinc-600" />
+                  <Bot className="text-zinc-600" />
                 )}
               </button>
             ))}
@@ -331,7 +356,7 @@ function RunHeader({ run }: { run: ChatRun }) {
       </div>
       {run.status === "running" ? (
         <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="animate-spin" />
           Agent workflow active
         </div>
       ) : null}
@@ -382,32 +407,77 @@ function ChatWorkspace({
 
   return (
     <section className="flex min-h-0 flex-col bg-zinc-50">
-      <MessageScroller>
-        {run.messages.map((message) => (
-          <Message key={message.id} role={message.role}>
-            <Bubble role={message.role}>{message.content}</Bubble>
-            {message.attachments?.length ? (
-              <div className="grid w-full gap-2">
-                {message.attachments.map((attachment) => (
-                  <Attachment key={attachment.id} name={attachment.name} size={attachment.size} />
-                ))}
-              </div>
-            ) : null}
-          </Message>
-        ))}
-        {run.status === "running" ? (
-          <>
-            <Marker>SEC lookup and document retrieval queued</Marker>
-            <Marker>Vultr extraction and covenant math in progress</Marker>
-            <Message role="assistant">
-              <Bubble role="assistant" className="flex items-center gap-2 text-zinc-600">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Calling tools and building the audit trail.
-              </Bubble>
-            </Message>
-          </>
-        ) : null}
-      </MessageScroller>
+      <MessageScrollerProvider>
+        <MessageScroller className="min-h-0 flex-1">
+          <MessageScrollerViewport className="px-4 py-6">
+            <MessageScrollerContent className="mx-auto w-full max-w-4xl gap-5">
+              {run.messages.map((message) => (
+                <MessageScrollerItem key={message.id}>
+                  <Message align={message.role === "user" ? "end" : "start"}>
+                    <MessageContent>
+                      <Bubble
+                        align={message.role === "user" ? "end" : "start"}
+                        variant={messageBubbleVariant(message.role)}
+                        className={message.role === "user" ? "max-w-[86%]" : "max-w-[86%]"}
+                      >
+                        <BubbleContent
+                          className={cn(
+                            "shadow-sm",
+                            message.role === "assistant" && "border-zinc-200 bg-white text-zinc-900",
+                            message.role === "system" && "border-red-200 bg-red-50 text-red-900"
+                          )}
+                        >
+                          {message.content}
+                        </BubbleContent>
+                      </Bubble>
+                      {message.attachments?.length ? (
+                        <div className="grid w-full gap-2">
+                          {message.attachments.map((attachment) => (
+                            <FileAttachmentView key={attachment.id} attachment={attachment} />
+                          ))}
+                        </div>
+                      ) : null}
+                    </MessageContent>
+                  </Message>
+                </MessageScrollerItem>
+              ))}
+              {run.status === "running" ? (
+                <>
+                  <MessageScrollerItem>
+                    <Marker variant="separator">
+                      <MarkerIcon>
+                        <Search />
+                      </MarkerIcon>
+                      <MarkerContent>SEC lookup and document retrieval queued</MarkerContent>
+                    </Marker>
+                  </MessageScrollerItem>
+                  <MessageScrollerItem>
+                    <Marker variant="separator">
+                      <MarkerIcon>
+                        <TerminalSquare />
+                      </MarkerIcon>
+                      <MarkerContent>Vultr extraction and covenant math in progress</MarkerContent>
+                    </Marker>
+                  </MessageScrollerItem>
+                  <MessageScrollerItem scrollAnchor>
+                    <Message>
+                      <MessageContent>
+                        <Bubble variant="outline" className="max-w-[86%]">
+                          <BubbleContent className="flex items-center gap-2 border-zinc-200 bg-white text-zinc-600 shadow-sm">
+                            <Loader2 className="animate-spin" />
+                            Calling tools and building the audit trail.
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                </>
+              ) : null}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
       <form onSubmit={submit} className="border-t border-zinc-200 bg-white p-4">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_minmax(0,1fr)]">
@@ -433,10 +503,9 @@ function ChatWorkspace({
           {attachments.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {attachments.map((attachment) => (
-                <Attachment
+                <FileAttachmentView
                   key={attachment.id}
-                  name={attachment.name}
-                  size={attachment.size}
+                  attachment={attachment}
                   onRemove={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
                 />
               ))}
@@ -446,19 +515,40 @@ function ChatWorkspace({
             <div className="flex items-center gap-2">
               <input ref={fileInputRef} type="file" className="hidden" multiple onChange={(event) => handleFiles(event.target.files)} />
               <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Paperclip className="h-4 w-4" />
+                <Paperclip />
                 Attach report
               </Button>
               <span className="text-xs text-zinc-500">Files stay with the chat context for this run.</span>
             </div>
             <Button type="submit" disabled={run.status === "running" || !prompt.trim()}>
-              {run.status === "running" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {run.status === "running" ? <Loader2 className="animate-spin" /> : <Send />}
               Run agent
             </Button>
           </div>
         </div>
       </form>
     </section>
+  );
+}
+
+function FileAttachmentView({ attachment, onRemove }: { attachment: FileAttachment; onRemove?: () => void }) {
+  return (
+    <Attachment size="sm" className="max-w-sm">
+      <AttachmentMedia>
+        <FileText />
+      </AttachmentMedia>
+      <AttachmentContent>
+        <AttachmentTitle>{attachment.name}</AttachmentTitle>
+        <AttachmentDescription>{Math.max(1, Math.round(attachment.size / 1024))} KB</AttachmentDescription>
+      </AttachmentContent>
+      {onRemove ? (
+        <AttachmentActions>
+          <AttachmentAction type="button" aria-label="Remove attachment" onClick={onRemove}>
+            <XCircle />
+          </AttachmentAction>
+        </AttachmentActions>
+      ) : null}
+    </Attachment>
   );
 }
 
@@ -510,7 +600,7 @@ function EmptyTrace({ running }: { running: boolean }) {
         <div className="mt-3 grid gap-2">
           {items.map(([label, Icon]) => (
             <div key={label} className="flex items-center gap-2 text-sm text-zinc-600">
-              <Icon className="h-4 w-4 text-zinc-400" />
+              <Icon className="text-zinc-400" />
               {label}
             </div>
           ))}
@@ -525,7 +615,7 @@ function ErrorBlock({ error }: { error: string }) {
     <section className="p-5">
       <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
         <div className="flex items-center gap-2 font-medium">
-          <XCircle className="h-4 w-4" />
+          <XCircle />
           Workflow failed
         </div>
         <p className="mt-2 leading-6">{error}</p>
@@ -661,7 +751,7 @@ function MonitoringBlock({ audit }: { audit: AuditRun }) {
         {monitoring.scheduleRecommendations.map((schedule, index) => (
           <div key={`${schedule.kind}-${index}`} className="rounded-md border border-zinc-200 bg-white p-3">
             <div className="flex items-center gap-2 text-sm font-medium text-zinc-950">
-              <CalendarClock className="h-4 w-4 text-zinc-500" />
+              <CalendarClock className="text-zinc-500" />
               {schedule.kind}
             </div>
             <div className="mt-2 text-xs leading-5 text-zinc-500">
@@ -722,7 +812,7 @@ function SectionTitle({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-zinc-500" />
+        <Icon className="text-zinc-500" />
         <h3 className="text-sm font-semibold text-zinc-950">{title}</h3>
       </div>
       {detail ? <Badge>{detail}</Badge> : null}

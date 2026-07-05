@@ -2,6 +2,7 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { createRootRoute, createRoute, createRouter, RouterProvider } from "@tanstack/react-router";
 import { CreditAgentApp } from "./components/credit-agent-app";
+import { TooltipProvider } from "./components/ui/tooltip";
 import "./index.css";
 
 const rootRoute = createRootRoute({
@@ -26,6 +27,8 @@ declare module "@tanstack/react-router" {
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <TooltipProvider>
+      <RouterProvider router={router} />
+    </TooltipProvider>
   </React.StrictMode>
 );
