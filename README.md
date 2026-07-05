@@ -23,6 +23,7 @@ Implemented:
 - Self-check retrieval for subsequent events and liquidity/debt discussion.
 - Optional SearXNG web search for live external context.
 - Explainability report with documents, tool calls, evidence trail, calculation trail, code verification, decision trail, and caveats.
+- Credit monitoring expansion with recent 8-K material-event scan, covenant headroom trend, credit-agreement amendment comparison, early-warning score, and background schedule recommendations.
 
 ## Verified Run Target
 
@@ -94,9 +95,31 @@ The backend controls the audit sequence:
 7. Extract line items and compute covenant ratios.
 8. Run Python scripts to verify math and project stress risk.
 9. Perform reflective retrieval for contradictory evidence.
-10. Produce action plan and explainability report.
+10. Scan recent 8-Ks for credit-relevant events.
+11. Estimate covenant headroom trend across recent filings when enough data can be extracted.
+12. Compare recent credit agreement amendments when prior agreements are available.
+13. Recommend follow-up schedules for rescans, 8-K checks, amendment checks, or high-frequency news monitoring.
+14. Produce action plan and explainability report.
 
 The LLM participates inside bounded steps for extraction and planning. Tools are explicit and auditable.
+
+## Background Agent Format
+
+The backend does not run long-lived scheduled jobs yet. Instead, each audit returns `creditMonitoring.scheduleRecommendations` as structured job proposals:
+
+```json
+{
+  "kind": "web_news_scan",
+  "cadenceMinutes": 15,
+  "runAt": "2026-07-05T12:15:00.000Z",
+  "reason": "High-risk credit signal warrants frequent external news monitoring.",
+  "input": {
+    "query": "MCK debt refinancing covenant default liquidity credit agreement"
+  }
+}
+```
+
+The UI or a worker process can persist these recommendations, execute them later, and attach Telegram/email notification rules.
 
 ## Environment
 
@@ -131,11 +154,14 @@ Use Dokploy or Docker Compose and point the backend at `SEARXNG_BASE_URL`.
 - Live SEC data path.
 - Live Vultr Vector Store retrieval.
 - Script-backed math verification.
+- Early-warning monitoring beyond one covenant calculation.
+- Explicit schedule recommendations for background agents.
 - Explainable output suitable for credit officers.
 
 ## Known Backend Limitations
 
 - Credit-agreement threshold extraction currently handles common leverage and coverage clauses such as `greater than 5.00 to 1.00` and `less than 2.50 to 1.00`. More covenant forms will need additional parsers.
 - SEC HTML table extraction is deterministic and tuned for common 10-Q layouts. More issuers will need additional parsing rules.
+- Background schedules are currently recommendations returned by the API; durable workers and notifications are not implemented yet.
 - PDF/scanned-document upload is not implemented yet.
 - Frontend is not implemented yet.

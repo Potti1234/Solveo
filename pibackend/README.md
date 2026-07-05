@@ -14,6 +14,7 @@ This folder now keeps only the reusable backend reference points needed by the r
 - Covenant calculation tool.
 - `execute_code` tool for Python/TypeScript analyst scripts.
 - AgentEngine skeleton for Plan -> Retrieve -> Calculate -> Report.
+- Credit monitoring expansion for recent 8-K events, covenant headroom trend, amendment checks, early-warning scoring, and schedule recommendations.
 
 ```bash
 cd pibackend
@@ -102,6 +103,7 @@ Triple-Check & Act:
 - Reflective retrieval searches `Subsequent Events` and management liquidity/debt language after the first calculation.
 - If a covenant is failing or within 10% of its limit, the agent calls `web_search` for recent 8-K, debt, refinancing, or covenant context.
 - The response includes `actionPlan` with a credit-officer summary, pre-filled borrower email, three borrower questions, and dashboard chart configuration.
+- The response also includes `creditMonitoring` with material event signals, headroom trend, amendment comparison, early-warning score, and proposed background jobs such as weekly rescans or 15-minute web/news scans for high-risk cases.
 
 Explainability report:
 

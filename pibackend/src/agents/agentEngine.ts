@@ -20,6 +20,7 @@ import {
 } from "../services/retriever";
 import { llmClient } from "../services/vultr";
 import { buildAuditExplainability } from "../services/auditReport";
+import { buildCreditMonitoring } from "../services/creditMonitoring";
 import { calculateCovenants } from "../tools/calculator";
 import { executeCode } from "../tools/executeCode";
 import { buildMathVerificationScript, buildTwoQuarterProjectionScript } from "../tools/riskScripts";
@@ -90,6 +91,21 @@ export class AgentEngine {
     const codeAnalyses = await this.runCodeAnalyses(rulebook, calculations, retrievals);
     const externalContext = await this.maybeSearchExternalContext(company?.ticker ?? request.ticker.toUpperCase(), calculations);
     const actionPlan = this.buildActionPlan(company?.ticker ?? request.ticker.toUpperCase(), calculations, externalContext);
+    this.think("monitoring", "Running credit monitoring checks for 8-K events, headroom trend, amendments, and follow-up schedules.", {
+      ticker: company?.ticker ?? request.ticker.toUpperCase()
+    });
+    const creditMonitoring = await buildCreditMonitoring({
+      ticker: request.ticker,
+      company,
+      creditAgreementUrl,
+      rulebook,
+      calculations
+    });
+    this.think("monitoring", "Completed credit monitoring expansion.", {
+      earlyWarning: creditMonitoring.earlyWarning,
+      materialEventCount: creditMonitoring.materialEvents.length,
+      scheduleCount: creditMonitoring.scheduleRecommendations.length
+    });
 
     this.think("reporting", "Preparing audit-ready compliance memo with citations.");
     const hasMeasuredCalculations = calculations.some((calculation) => calculation.actual > 0);
@@ -114,6 +130,7 @@ export class AgentEngine {
       reflectiveChecks,
       externalContext,
       actionPlan,
+      creditMonitoring,
       codeAnalyses,
       memo
     };

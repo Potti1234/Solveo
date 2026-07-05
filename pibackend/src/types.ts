@@ -125,6 +125,7 @@ export type AuditThought = {
     | "retrieval"
     | "calculation"
     | "code_execution"
+    | "monitoring"
     | "reporting";
   message: string;
   payload?: Record<string, unknown>;
@@ -182,6 +183,7 @@ export type AuditRunResult = {
   reflectiveChecks: RetrievalBlock[];
   externalContext: WebSearchResponse | null;
   actionPlan: ActionPlan | null;
+  creditMonitoring: CreditMonitoringResult | null;
   codeAnalyses: CodeExecutionResult[];
   memo: ComplianceMemo;
   explainability: AuditExplainability;
@@ -249,6 +251,79 @@ export type ActionPlan = {
       dataKey: string;
     }>;
   };
+};
+
+export type MaterialEventSignal = {
+  filingDate: string;
+  form: "8-K" | "10-Q" | "10-K" | string;
+  accessionNumber: string;
+  documentUrl: string;
+  category:
+    | "debt_financing"
+    | "credit_agreement"
+    | "acquisition"
+    | "default"
+    | "restructuring"
+    | "impairment"
+    | "leadership_change"
+    | "litigation"
+    | "liquidity"
+    | "other";
+  severity: "low" | "medium" | "high";
+  summary: string;
+  citations: Citation[];
+};
+
+export type CovenantHeadroomPoint = {
+  filingDate: string;
+  filingUrl: string;
+  ruleId: string;
+  actual: number;
+  threshold: number;
+  operator: CovenantRule["operator"];
+  cushion: number;
+  status: "pass" | "fail" | "unknown";
+};
+
+export type HeadroomTrend = {
+  points: CovenantHeadroomPoint[];
+  direction: "improving" | "stable" | "deteriorating" | "insufficient_data";
+  summary: string;
+};
+
+export type AmendmentComparison = {
+  currentAgreementUrl: string | null;
+  priorAgreementUrl: string | null;
+  changes: Array<{
+    ruleName: string;
+    previousThreshold: number | null;
+    currentThreshold: number | null;
+    direction: "looser" | "tighter" | "unchanged" | "unknown";
+    summary: string;
+    citations: Citation[];
+  }>;
+};
+
+export type EarlyWarningScore = {
+  level: "low" | "medium" | "high" | "critical";
+  score: number;
+  drivers: string[];
+};
+
+export type MonitoringScheduleRecommendation = {
+  kind: "audit_rescan" | "sec_8k_scan" | "web_news_scan" | "amendment_scan";
+  cadenceMinutes: number;
+  runAt: string;
+  reason: string;
+  input: Record<string, unknown>;
+};
+
+export type CreditMonitoringResult = {
+  materialEvents: MaterialEventSignal[];
+  headroomTrend: HeadroomTrend;
+  amendmentComparison: AmendmentComparison | null;
+  earlyWarning: EarlyWarningScore;
+  scheduleRecommendations: MonitoringScheduleRecommendation[];
 };
 
 export type WhatIfRequest = {

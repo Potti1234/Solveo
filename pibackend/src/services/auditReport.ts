@@ -76,6 +76,26 @@ export function renderAuditMarkdown(result: AuditRunResult): string {
         `- ${code.purpose}: exit=${code.exitCode}, timedOut=${code.timedOut}\n  Output: ${oneLine(code.stdoutPreview)}`
     ),
     "",
+    "## Credit Monitoring",
+    ...(result.creditMonitoring
+      ? [
+          `Early warning: ${result.creditMonitoring.earlyWarning.level.toUpperCase()} (${result.creditMonitoring.earlyWarning.score}/100)`,
+          ...result.creditMonitoring.earlyWarning.drivers.map((driver) => `- Driver: ${driver}`),
+          `Headroom trend: ${result.creditMonitoring.headroomTrend.direction}`,
+          ...result.creditMonitoring.materialEvents.map(
+            (event) => `- 8-K ${event.severity.toUpperCase()} ${event.category}: ${event.summary}\n  Source: ${event.documentUrl}`
+          ),
+          ...(result.creditMonitoring.amendmentComparison?.changes.map(
+            (change) =>
+              `- Amendment ${change.direction}: ${change.ruleName} ${change.previousThreshold ?? "n/a"} -> ${change.currentThreshold ?? "n/a"}\n  ${change.summary}`
+          ) ?? []),
+          ...result.creditMonitoring.scheduleRecommendations.map(
+            (schedule) =>
+              `- Schedule ${schedule.kind}: every ${schedule.cadenceMinutes} minute(s), next ${schedule.runAt}\n  Reason: ${schedule.reason}`
+          )
+        ]
+      : ["Credit monitoring expansion was not run."]),
+    "",
     "## Decision",
     report.decisionTrail.summary,
     "",
@@ -168,6 +188,37 @@ function buildToolCalls(result: Omit<AuditRunResult, "explainability">): AuditEx
     });
   }
 
+  if (result.creditMonitoring) {
+    calls.push({
+      order: order++,
+      tool: "credit.material_event_monitor",
+      purpose: "Scan recent 8-K filings for credit-relevant events.",
+      inputSummary: result.memo.ticker,
+      outputSummary: `${result.creditMonitoring.materialEvents.length} material event signal(s).`
+    });
+    calls.push({
+      order: order++,
+      tool: "credit.headroom_trend",
+      purpose: "Calculate covenant headroom across recent quarterly filings.",
+      inputSummary: result.rulebook.rules.map((rule) => rule.name).join(", "),
+      outputSummary: result.creditMonitoring.headroomTrend.summary
+    });
+    calls.push({
+      order: order++,
+      tool: "credit.amendment_detector",
+      purpose: "Compare current and prior credit agreement covenant terms when available.",
+      inputSummary: result.creditAgreementUrl ?? "No credit agreement URL.",
+      outputSummary: `${result.creditMonitoring.amendmentComparison?.changes.length ?? 0} amendment change(s).`
+    });
+    calls.push({
+      order: order++,
+      tool: "credit.schedule_planner",
+      purpose: "Recommend background monitoring jobs based on risk level.",
+      inputSummary: result.creditMonitoring.earlyWarning.level,
+      outputSummary: `${result.creditMonitoring.scheduleRecommendations.length} recommended schedule(s).`
+    });
+  }
+
   return calls;
 }
 
@@ -236,6 +287,9 @@ function buildCaveats(result: Omit<AuditRunResult, "explainability">): string[] 
   }
   if (!result.externalContext) caveats.push("External web search was not triggered because the result was not within the configured risk threshold.");
   if (result.rulebook.agreementName.includes("Unresolved covenant rulebook")) caveats.push("The agent could not extract a covenant threshold from the agreement; the audit requires human review.");
+  if (result.creditMonitoring?.headroomTrend.direction === "insufficient_data") {
+    caveats.push("Historical covenant headroom trend has insufficient extracted quarterly observations.");
+  }
   return caveats.length > 0 ? caveats : ["No major caveats recorded by the current workflow."];
 }
 

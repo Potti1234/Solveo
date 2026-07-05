@@ -50,6 +50,28 @@ export async function findLatestFiling(ticker: string, filingType: "10-Q" | "10-
   };
 }
 
+export async function findRecentFilings(
+  ticker: string,
+  forms: Array<"8-K" | "10-Q" | "10-K">,
+  limit = 20
+): Promise<SecRecentFiling[]> {
+  const company = await resolveCompanyTicker(ticker);
+  if (!company) return [];
+  const recentFilings = await fetchRecentFilings(company, Math.max(limit * 3, limit));
+  return recentFilings.filter((filing) => forms.includes(filing.form as "8-K" | "10-Q" | "10-K")).slice(0, limit);
+}
+
+export async function fetchSecDocumentText(url: string): Promise<string> {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": process.env.SEC_USER_AGENT ?? "MyHackathonProject (email@example.com)",
+      Accept: "text/html, text/plain, application/xhtml+xml, */*"
+    }
+  });
+  if (!response.ok) return "";
+  return normalizeSecText(await response.text());
+}
+
 export async function discoverCreditAgreementExhibits(ticker: string, limit = 20): Promise<ExhibitDiscovery> {
   const company = await resolveCompanyTicker(ticker);
   if (!company) throw new Error(`SEC ticker not found: ${ticker}`);
@@ -355,4 +377,21 @@ function isExhibit101Name(filename: string): boolean {
     normalized.includes("10-1") ||
     normalized.includes("101")
   );
+}
+
+function normalizeSecText(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(Number.parseInt(code, 16)))
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
