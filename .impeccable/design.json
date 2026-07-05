@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-05T00:00:00.000Z",
+  "title": "Design System: Vultr-Audit",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "primary",
+        "displayName": "Case File Ink",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": ["oklch(0.15 0 0)", "oklch(0.25 0 0)", "oklch(0.35 0 0)", "oklch(0.45 0 0)", "oklch(0.58 0 0)", "oklch(0.72 0 0)", "oklch(0.86 0 0)", "oklch(0.96 0 0)"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Case File Paper",
+        "canonical": "oklch(0.985 0 0)",
+        "tonalRamp": ["oklch(0.18 0 0)", "oklch(0.30 0 0)", "oklch(0.44 0 0)", "oklch(0.58 0 0)", "oklch(0.72 0 0)", "oklch(0.84 0 0)", "oklch(0.93 0 0)", "oklch(0.985 0 0)"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Evidence Surface",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": ["oklch(0.20 0 0)", "oklch(0.32 0 0)", "oklch(0.46 0 0)", "oklch(0.60 0 0)", "oklch(0.74 0 0)", "oklch(0.86 0 0)", "oklch(0.95 0 0)", "oklch(1 0 0)"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline Border",
+        "canonical": "oklch(0.922 0 0)",
+        "tonalRamp": ["oklch(0.22 0 0)", "oklch(0.34 0 0)", "oklch(0.48 0 0)", "oklch(0.62 0 0)", "oklch(0.74 0 0)", "oklch(0.84 0 0)", "oklch(0.922 0 0)", "oklch(0.97 0 0)"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Run Title",
+        "purpose": "Small app-level titles only. No hero-scale display type in product UI."
+      },
+      "body": {
+        "displayName": "Analyst Body",
+        "purpose": "Chat summaries, evidence explanations, and memo text."
+      },
+      "mono": {
+        "displayName": "Evidence Mono",
+        "purpose": "Ratios, financial values, JSON, code output, and identifiers."
+      }
+    },
+    "shadows": [
+      {
+        "name": "none-at-rest",
+        "value": "none",
+        "purpose": "Default panel and container treatment. Use borders for depth."
+      },
+      {
+        "name": "focus-ring",
+        "value": "0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent)",
+        "purpose": "Keyboard focus and active control visibility."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "150ms ease-out",
+        "purpose": "Hover, focus, selected, and active state changes."
+      },
+      {
+        "name": "press-feedback",
+        "value": "translateY(1px)",
+        "purpose": "Button active state only."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary command for running the agent or creating work.",
+      "html": "<button class=\"ds-btn-primary\">Run agent</button>",
+      "css": ".ds-btn-primary{height:32px;border:1px solid transparent;border-radius:10px;background:#18181b;color:#fafafa;padding:0 10px;font:500 14px/1 'Geist Variable',system-ui,sans-serif;transition:background-color 150ms ease-out,transform 150ms ease-out}.ds-btn-primary:hover{background:#3f3f46}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:3px solid rgba(113,113,122,.35);outline-offset:2px}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary command for upload and contextual actions.",
+      "html": "<button class=\"ds-btn-outline\">Attach report</button>",
+      "css": ".ds-btn-outline{height:32px;border:1px solid #e4e4e7;border-radius:10px;background:#fff;color:#18181b;padding:0 10px;font:500 14px/1 'Geist Variable',system-ui,sans-serif;transition:background-color 150ms ease-out,border-color 150ms ease-out,transform 150ms ease-out}.ds-btn-outline:hover{background:#f4f4f5;border-color:#d4d4d8}.ds-btn-outline:active{transform:translateY(1px)}.ds-btn-outline:focus-visible{outline:3px solid rgba(113,113,122,.35);outline-offset:2px}"
+    },
+    {
+      "name": "Chat Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Natural-language prompt input with compact product-control styling.",
+      "html": "<input class=\"ds-input\" placeholder=\"Ask the agent to analyze a borrower or debt report\" />",
+      "css": ".ds-input{height:32px;width:100%;border:1px solid #e4e4e7;border-radius:10px;background:#fff;color:#18181b;padding:4px 10px;font:400 14px/1.4 'Geist Variable',system-ui,sans-serif;transition:border-color 150ms ease-out,box-shadow 150ms ease-out}.ds-input::placeholder{color:#52525b}.ds-input:focus{outline:none;border-color:#a1a1aa;box-shadow:0 0 0 3px rgba(113,113,122,.25)}.ds-input:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Agent Bubble",
+      "kind": "custom",
+      "refersTo": "chat-bubble-agent",
+      "description": "Inspectable event in the agent timeline.",
+      "html": "<button class=\"ds-agent-bubble\"><span class=\"ds-agent-title\">Retrieving financial evidence</span><span class=\"ds-agent-summary\">I am retrieving evidence for total debt.</span></button>",
+      "css": ".ds-agent-bubble{display:grid;gap:4px;width:100%;max-width:640px;text-align:left;border:1px solid #e4e4e7;border-radius:12px;background:#fff;color:#18181b;padding:12px;font:400 14px/1.5 'Geist Variable',system-ui,sans-serif;transition:background-color 150ms ease-out,border-color 150ms ease-out}.ds-agent-bubble:hover{background:#f4f4f5;border-color:#d4d4d8}.ds-agent-bubble:focus-visible{outline:3px solid rgba(113,113,122,.35);outline-offset:2px}.ds-agent-title{font-weight:600}.ds-agent-summary{color:#52525b}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-neutral",
+      "description": "Compact state label for runs, tool events, and covenant decisions.",
+      "html": "<span class=\"ds-badge\">complete</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;height:20px;border:1px solid #e4e4e7;border-radius:999px;background:#f4f4f5;color:#18181b;padding:2px 8px;font:500 12px/1 'Geist Variable',system-ui,sans-serif;white-space:nowrap}.ds-badge[data-state='warning']{border-color:#fde68a;background:#fffbeb;color:#b45309}.ds-badge[data-state='success']{border-color:#a7f3d0;background:#ecfdf5;color:#047857}.ds-badge[data-state='error']{border-color:#fecaca;background:#fef2f2;color:#b91c1c}"
+    },
+    {
+      "name": "Inspector Panel",
+      "kind": "card",
+      "refersTo": "chat-bubble-agent",
+      "description": "Right-side detail surface for selected evidence.",
+      "html": "<section class=\"ds-inspector\"><h3>Tool call</h3><p>Input, output, citations, and raw payload for the selected event.</p></section>",
+      "css": ".ds-inspector{border-left:1px solid #e4e4e7;background:#fff;color:#18181b;padding:20px;font:400 14px/1.6 'Geist Variable',system-ui,sans-serif}.ds-inspector h3{margin:0 0 8px;font-size:14px;font-weight:600;line-height:1.35}.ds-inspector p{margin:0;color:#52525b;max-width:65ch}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Analyst's Case File",
+    "overview": "Vultr-Audit is a product workspace for risk analysts, not a marketing surface. The visual system should feel like a clean digital case file: organized, quiet, source-conscious, and ready for repeated review. The chat is the primary work surface because it shows the investigation unfolding; the inspector and sidebar support the conversation rather than competing with it.",
+    "keyCharacteristics": [
+      "Restrained monochrome surfaces with status color used only for state.",
+      "Flat layered panels, borders, and dividers instead of decorative shadows.",
+      "Compact shadcn controls with consistent radii and predictable affordances.",
+      "Chat-led analysis with inspectable evidence, calculations, and scheduled follow-up work.",
+      "Calm copy that explains what the agent is doing in concrete terms."
+    ],
+    "rules": [
+      {
+        "name": "The Status-Only Color Rule",
+        "body": "Green, amber, red, and blue are state language, not decoration. If a color does not tell the analyst something changed, passed, failed, or is running, remove it.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Crypto Dark Mode Rule",
+        "body": "Dark surfaces may exist for code output only. The product shell stays light, clean, and legible.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Case File Rule",
+        "body": "If a surface can be separated with a 1px border or divider, use that instead of a shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do lead with the conversation. The chat timeline is the analyst's main work surface.",
+      "Do use monochrome surfaces and restrained status colors.",
+      "Do keep panels flat and layered with borders.",
+      "Do expose source citations, tool inputs, tool outputs, code output, and raw payloads on demand."
+    ],
+    "donts": [
+      "Don't make the product look like crypto dark mode, neon fintech, generic AI-purple workflow software, a playful consumer chatbot, or a dense Bloomberg-style terminal.",
+      "Don't use marketing-style hero sections, decorative dashboards, or heavy visual effects.",
+      "Don't make the main surface a form-heavy interface with many required fields.",
+      "Don't hide the paper trail in a final report only. Evidence must be visible where the claim appears."
+    ]
+  }
+}
