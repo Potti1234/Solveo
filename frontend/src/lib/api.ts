@@ -19,6 +19,23 @@ export async function runAudit(input: { ticker: string; creditAgreementUrl?: str
   return (await response.json()) as AuditResponse;
 }
 
+export async function resolveAuditIntent(input: { prompt: string; creditAgreementUrl?: string }): Promise<{ ticker: string; creditAgreementUrl?: string }> {
+  const response = await fetch(`${API_URL}/api/audits/intent`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Intent resolution failed with status ${response.status}`);
+  }
+
+  return (await response.json()) as { ticker: string; creditAgreementUrl?: string };
+}
+
 export async function runAuditStream(
   input: { ticker: string; creditAgreementUrl?: string },
   onEvent: (event: AuditStreamEvent) => void

@@ -20,7 +20,7 @@ export type ChatRunStatus = "idle" | "running" | "complete" | "error";
 export type ChatRun = {
   id: string;
   title: string;
-  ticker: string;
+  ticker?: string;
   creditAgreementUrl?: string;
   status: ChatRunStatus;
   createdAt: string;

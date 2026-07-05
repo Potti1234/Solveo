@@ -1,9 +1,25 @@
 import { Elysia } from "elysia";
 import { AgentEngine } from "../agents/agentEngine";
+import { resolveAuditIntent } from "../services/auditIntent";
 import { renderAuditMarkdown } from "../services/auditReport";
 import type { AuditRequest, AuditThought } from "../types";
 
-export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/run", async ({ body, set }) => {
+export const auditRoutes = new Elysia({ prefix: "/api/audits" }).post("/intent", async ({ body, set }) => {
+  const payload = (body ?? {}) as { prompt?: string; creditAgreementUrl?: string };
+  const prompt = String(payload.prompt ?? "").trim();
+  if (!prompt) {
+    set.status = 400;
+    return { detail: "prompt is required." };
+  }
+
+  const intent = await resolveAuditIntent(prompt, payload.creditAgreementUrl);
+  if (!intent) {
+    set.status = 400;
+    return { detail: "Could not identify a public company ticker from the instruction." };
+  }
+
+  return intent;
+}).post("/run", async ({ body, set }) => {
   const request = normalizeAuditRequest(body);
   if (!request) {
     set.status = 400;

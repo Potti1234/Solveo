@@ -3,11 +3,13 @@ import { expect, test } from "@playwright/test";
 test("desktop case-file shell keeps chat as the primary input", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: /covenant review/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /new credit review/i })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Prompt" })).toBeVisible();
   await expect(page.getByRole("button", { name: /attach report/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /run agent/i })).toBeVisible();
   await expect(page.getByText("Follow-up agents")).toBeVisible();
+  await expect(page.getByText("Ticker MCK")).toHaveCount(0);
+  await expect(page.getByText("Agreement detected")).toHaveCount(0);
 
   const metrics = await page.evaluate(() => ({
     horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth,

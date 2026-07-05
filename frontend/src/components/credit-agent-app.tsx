@@ -16,7 +16,7 @@ import {
   TerminalSquare,
   XCircle
 } from "lucide-react";
-import { runAuditStream } from "../lib/api";
+import { resolveAuditIntent, runAuditStream } from "../lib/api";
 import type { AuditRun, AuditStreamEvent, ChatMessage, ChatRun, FileAttachment } from "../lib/types";
 import { cn, compactNumber, formatRatio } from "../lib/utils";
 import {
@@ -53,10 +53,7 @@ import {
 } from "./ui/sidebar";
 import { Textarea } from "./ui/textarea";
 
-const STORAGE_KEY = "solveo-credit-chat-runs-v1";
-const DEFAULT_AGREEMENT_URL =
-  "https://www.sec.gov/Archives/edgar/data/927653/000092765326000167/mck_ex101termloanagreement.htm";
-
+const STORAGE_KEY = "solveo-credit-chat-runs-v2";
 type TimelineKind = "message" | "phase" | "tool" | "retrieval" | "calculation" | "code" | "monitoring" | "report" | "error";
 
 type TimelineItem = {
@@ -83,21 +80,11 @@ function initialRun(): ChatRun {
   const timestamp = now();
   return {
     id: id("run"),
-    title: "MCK covenant review",
-    ticker: "MCK",
-    creditAgreementUrl: DEFAULT_AGREEMENT_URL,
+    title: "New credit review",
     status: "idle",
     createdAt: timestamp,
     updatedAt: timestamp,
-    messages: [
-      {
-        id: id("msg"),
-        role: "assistant",
-        createdAt: timestamp,
-        content:
-          "Ready. Give me a ticker, an agreement URL, or a debt report and I will route it through the credit monitoring workflow."
-      }
-    ]
+    messages: []
   };
 }
 
@@ -145,13 +132,6 @@ function messageBubbleVariant(role: ChatMessage["role"]) {
   if (role === "user") return "default";
   if (role === "system") return "destructive";
   return "outline";
-}
-
-function extractTicker(prompt: string, fallback: string) {
-  const withoutUrls = prompt.replace(/https?:\/\/\S+/g, "");
-  const matches = withoutUrls.match(/\b[A-Z]{1,5}\b/g);
-  const ignored = new Set(["SEC", "URL", "PDF", "LLM", "API", "CFO"]);
-  return matches?.find((match) => !ignored.has(match)) ?? fallback;
 }
 
 function extractUrl(prompt: string) {
@@ -455,7 +435,7 @@ export function CreditAgentApp() {
 
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0];
   const timeline = React.useMemo(() => (activeRun ? buildTimeline(activeRun) : []), [activeRun]);
-  const selectedItem = timeline.find((item) => item.id === selectedItemId) ?? timeline.find((item) => item.kind !== "message") ?? timeline[0];
+  const selectedItem = selectedItemId ? (timeline.find((item) => item.id === selectedItemId) ?? null) : null;
 
   React.useEffect(() => {
     setSelectedItemId(null);
@@ -467,30 +447,19 @@ export function CreditAgentApp() {
 
   function createRun() {
     const next = initialRun();
-    next.title = "New credit review";
-    next.messages = [
-      createMessage(
-        "assistant",
-        "Start with a ticker, an agreement URL, or a short instruction like: analyze MCK with this credit agreement."
-      )
-    ];
     setRuns((current) => [next, ...current]);
     setActiveRunId(next.id);
     setSelectedItemId(null);
   }
 
-  async function submitPrompt(input: { prompt: string; ticker: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) {
+  async function submitPrompt(input: { prompt: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) {
     const runId = activeRun.id;
-    const ticker = extractTicker(input.prompt, input.ticker || activeRun.ticker || "MCK").toUpperCase();
-    const creditAgreementUrl = extractUrl(input.prompt) ?? input.creditAgreementUrl ?? activeRun.creditAgreementUrl;
     const startedAt = now();
     setSelectedItemId(`${runId}:running:sec`);
 
     updateRun(runId, (run) => ({
       ...run,
-      ticker,
-      creditAgreementUrl,
-      title: `${ticker} credit review`,
+      title: "Resolving credit review",
       status: "running",
       error: undefined,
       audit: undefined,
@@ -502,12 +471,31 @@ export function CreditAgentApp() {
         createMessage("user", input.prompt, input.attachments),
         createMessage(
           "assistant",
-          `I will route ${ticker} through SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and memo generation.`
+          "I am reading your instruction, identifying the borrower, and preparing the credit workflow."
         )
       ]
     }));
 
     try {
+      const intent = await resolveAuditIntent({ prompt: input.prompt, creditAgreementUrl: input.creditAgreementUrl });
+      const ticker = intent.ticker.toUpperCase();
+      const creditAgreementUrl = intent.creditAgreementUrl ?? input.creditAgreementUrl;
+
+      updateRun(runId, (run) => ({
+        ...run,
+        ticker,
+        creditAgreementUrl,
+        title: `${ticker} credit review`,
+        updatedAt: now(),
+        messages: [
+          ...run.messages,
+          createMessage(
+            "assistant",
+            `I identified ${ticker} from your instruction and will now run SEC lookup, covenant extraction, financial retrieval, code verification, external checks, and memo generation.`
+          )
+        ]
+      }));
+
       const response = await runAuditStream({ ticker, creditAgreementUrl }, (event) => {
         if (event.type === "done") return;
         updateRun(runId, (run) => ({
@@ -560,7 +548,7 @@ export function CreditAgentApp() {
               onSelectItem={setSelectedItemId}
               onSubmit={submitPrompt}
             />
-            <InspectorPanel run={activeRun} item={selectedItem} />
+            <InspectorPanel run={activeRun} item={selectedItem ?? undefined} />
           </div>
         </div>
       </SidebarInset>
@@ -626,7 +614,7 @@ function RunSidebar({
                       <Badge className={statusClasses(run.status)}>{statusLabel(run.status)}</Badge>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2 text-xs text-zinc-500">
-                      <span>{run.ticker}</span>
+            <span>{run.ticker ?? "No ticker yet"}</span>
                       <span>{formatDate(run.updatedAt)}</span>
                     </div>
                   </>
@@ -695,9 +683,9 @@ function RunHeader({ run }: { run: ChatRun }) {
             {status ? <Badge className={memoStatusClasses(status)}>{status.replace("_", " ")}</Badge> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-            <span>Ticker {run.ticker}</span>
+            {run.ticker ? <span>Ticker {run.ticker}</span> : <span>Prompt-first review</span>}
             {earlyWarning ? <span>Risk score {earlyWarning.score}/100</span> : null}
-            {run.creditAgreementUrl ? <span className="max-w-[42rem] truncate">Agreement linked</span> : null}
+            {run.creditAgreementUrl ? <span className="max-w-[42rem] truncate">Agreement URL in context</span> : null}
           </div>
         </div>
       </div>
@@ -722,24 +710,22 @@ function ChatWorkspace({
   timeline: TimelineItem[];
   selectedItemId: string | null;
   onSelectItem: (itemId: string) => void;
-  onSubmit: (input: { prompt: string; ticker: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) => void;
+  onSubmit: (input: { prompt: string; creditAgreementUrl?: string; attachments: FileAttachment[] }) => void;
 }) {
   const [prompt, setPrompt] = React.useState("Analyze this report with the filings and produce a credit officer memo.");
-  const [ticker, setTicker] = React.useState(run.ticker);
   const [creditAgreementUrl, setCreditAgreementUrl] = React.useState(run.creditAgreementUrl ?? "");
   const [attachments, setAttachments] = React.useState<FileAttachment[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
-    setTicker(run.ticker);
     setCreditAgreementUrl(run.creditAgreementUrl ?? "");
     setAttachments([]);
-  }, [run.id, run.ticker, run.creditAgreementUrl]);
+  }, [run.id, run.creditAgreementUrl]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!prompt.trim() || run.status === "running") return;
-    onSubmit({ prompt: prompt.trim(), ticker, creditAgreementUrl: creditAgreementUrl.trim() || undefined, attachments });
+    onSubmit({ prompt: prompt.trim(), creditAgreementUrl: creditAgreementUrl.trim() || undefined, attachments });
     setPrompt("");
     setAttachments([]);
   }
@@ -786,18 +772,14 @@ function ChatWorkspace({
               onChange={(event) => {
                 const value = event.target.value;
                 setPrompt(value);
-                const nextTicker = extractTicker(value, run.ticker);
-                setTicker(nextTicker);
                 setCreditAgreementUrl(extractUrl(value) ?? run.creditAgreementUrl ?? "");
               }}
-              placeholder="Ask the agent in plain language. Example: Analyze MCK with this credit agreement URL and prepare a covenant risk plan."
+              placeholder="Ask the agent in plain language. Example: Analyze McKesson with this credit agreement URL and prepare a covenant risk plan."
               aria-label="Prompt"
               className="min-h-24 border-0 px-0 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
             />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-zinc-500">
-                <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700">Ticker {ticker}</Badge>
-                {creditAgreementUrl ? <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700">Agreement detected</Badge> : null}
                 <span className="truncate">Use free text, paste SEC links, or attach a debt report.</span>
               </div>
               <div className="flex items-center gap-2">
