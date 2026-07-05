@@ -12,7 +12,7 @@ This repo now deploys with the root `docker-compose.yml`.
 docker-compose.yml
 ```
 
-4. Expose the `frontend` service on port `80`.
+4. Route the domain to the `frontend` service on internal port `80`.
 5. Point your domain to the frontend service. Example:
 
 ```text
@@ -27,7 +27,6 @@ SearXNG is not deployed by this Compose file; point `SEARXNG_BASE_URL` at your e
 Set these in Dokploy's environment variables for the app:
 
 ```bash
-FRONTEND_PORT=3000
 VITE_API_URL=
 CORS_ORIGINS=https://solveo.example.com
 
