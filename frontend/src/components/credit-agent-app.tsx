@@ -731,10 +731,11 @@ function ChatWorkspace({
   }
 
   function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
+    const selectedFiles = Array.from(files ?? []);
+    if (!selectedFiles.length) return;
     setAttachments((current) => [
       ...current,
-      ...Array.from(files).map((file) => ({
+      ...selectedFiles.map((file) => ({
         id: id("file"),
         name: file.name,
         size: file.size,
