@@ -3,7 +3,11 @@ backend/**/*.pyc
 backend/concierge_court.db
 node_modules/
 frontend/.next/
+frontend/dist/
 frontend/node_modules/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 frontend/*.log
 frontend/npm-debug.log*
 .env
