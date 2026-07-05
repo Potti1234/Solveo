@@ -44,7 +44,7 @@ export type FinancialLineItem = {
 export type RetrievalBlock = {
   query: string;
   reasoning: string;
-  model?: "flash" | "prime";
+  model?: "flash" | "core" | "prime";
   lineItems: FinancialLineItem[];
   citations: Citation[];
   rawResults?: Array<{

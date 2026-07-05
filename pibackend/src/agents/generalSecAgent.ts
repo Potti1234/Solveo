@@ -59,7 +59,7 @@ export class GeneralSecAgent {
           await retrieveFinancialContext({
             documentUrl: filing.primaryDocumentUrl,
             query,
-            model: "prime",
+            model: "core",
             reasoning: `General SEC filing research for: ${prompt}`
           })
         );

@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { vultrDocumentCollections } from "../db/schema";
 import type { Citation, CovenantKeywordScan, CovenantRule, CovenantRulebook, FinancialLineItem, RetrievalBlock } from "../types";
-import { llmClient, type VectorSearchResult } from "./vultr";
+import { llmClient, type VectorSearchResult, type VultronRetrieverFlavor } from "./vultr";
 
 export type RetrieverRequest = {
   documentUrl: string;
   query: string;
   reasoning: string;
-  model?: "flash" | "prime";
+  model?: VultronRetrieverFlavor;
 };
 
 export const COVENANT_DISCOVERY_KEYWORDS = [
@@ -24,7 +24,7 @@ export const COVENANT_DISCOVERY_KEYWORDS = [
 export async function scanCovenantKeywords(documentUrl: string): Promise<CovenantKeywordScan> {
   const keywords = [...COVENANT_DISCOVERY_KEYWORDS];
   const documentText = await fetchDocumentText(documentUrl);
-  const textHits = keywordHitsFromText(documentUrl, documentText, keywords);
+  const textHits = await keywordHitsWithVultronFlash(documentUrl, documentText, keywords);
   if (textHits.some((hit) => hit.found)) {
     return {
       documentUrl,
@@ -39,7 +39,7 @@ export async function scanCovenantKeywords(documentUrl: string): Promise<Covenan
   if (collection) {
     const hits = [];
     for (const keyword of keywords) {
-      const results = await llmClient.searchCollection(collection.collectionId, keyword);
+      const results = await llmClient.rerankDocuments(keyword, await llmClient.searchCollection(collection.collectionId, keyword), "flash");
       hits.push({
         keyword,
         found: results.length > 0,
@@ -83,7 +83,7 @@ export async function retrieveFinancialContext(request: RetrieverRequest): Promi
 
   const collection = await ensureDocumentCollection(request.documentUrl);
   if (collection) {
-    const rawResults = await searchExpanded(collection.collectionId, request.query);
+    const rawResults = await searchExpanded(collection.collectionId, request.query, request.model ?? "prime");
     const extraction = await llmClient.ragJson(
       collection.collectionId,
       [
@@ -197,7 +197,7 @@ export async function extractCovenantRulebookFromDocument(documentUrl: string, b
   return parsedRulebook;
 }
 
-async function searchExpanded(collectionId: string, query: string): Promise<VectorSearchResult[]> {
+async function searchExpanded(collectionId: string, query: string, flavor: VultronRetrieverFlavor): Promise<VectorSearchResult[]> {
   const queries = expandedQueries(query);
   const seen = new Set<string>();
   const results: VectorSearchResult[] = [];
@@ -211,7 +211,8 @@ async function searchExpanded(collectionId: string, query: string): Promise<Vect
     }
   }
 
-  return prioritizeResults(query, results).slice(0, 12);
+  const prioritized = prioritizeResults(query, results).slice(0, 24);
+  return (await llmClient.rerankDocuments(query, prioritized, flavor)).slice(0, 12);
 }
 
 function expandedQueries(query: string): string[] {
@@ -251,6 +252,40 @@ function scoreResult(query: string, content: string): number {
     if (text.includes("income tax")) score += 2;
   }
   return score;
+}
+
+async function keywordHitsWithVultronFlash(
+  documentUrl: string,
+  documentText: string,
+  keywords: readonly string[]
+): Promise<CovenantKeywordScan["hits"]> {
+  if (!documentText.trim()) return keywordHitsFromText(documentUrl, documentText, keywords);
+
+  const chunks = chunkText(documentText, Number(process.env.VULTR_RETRIEVER_CHUNK_CHARS ?? 12_000)).slice(0, 40);
+  const documents = chunks.map((content, index) => ({
+    content,
+    description: `Document chunk ${index + 1}`
+  }));
+
+  const hits: CovenantKeywordScan["hits"] = [];
+  for (const keyword of keywords) {
+    const literalHits = keywordHitsFromText(documentUrl, documentText, [keyword]);
+    const ranked = await llmClient.rerankDocuments(keyword, documents, "flash");
+    const top = ranked[0];
+    const found = literalHits[0]?.found || Boolean(top && (top.score ?? 0) > Number(process.env.VULTR_FLASH_KEYWORD_MIN_SCORE ?? "0"));
+    hits.push({
+      keyword,
+      found,
+      citations: found
+        ? [
+            ...(literalHits[0]?.citations ?? []),
+            ...(top ? [resultCitation(documentUrl, `VultronRetrieverFlash:${keyword}`, top, 0)] : [])
+          ].slice(0, 3)
+        : []
+    });
+  }
+
+  return hits;
 }
 
 export async function extractCovenantRulesContext(documentUrl: string, keywordScan: CovenantKeywordScan): Promise<RetrievalBlock> {
@@ -369,7 +404,7 @@ async function extractCovenantRulebookWithRag(documentUrl: string, borrower: str
     "shall not permit Total Net Leverage Ratio greater than less than Interest Coverage Ratio",
     "Financial Covenants Compliance Certificate leverage ratio coverage ratio"
   ].join(" OR ");
-  const rawResults = await searchExpanded(collection.collectionId, query);
+  const rawResults = await searchExpanded(collection.collectionId, query, "prime");
 
   const rulebook = await llmClient.ragJson(
     collection.collectionId,

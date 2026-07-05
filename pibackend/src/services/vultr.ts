@@ -13,6 +13,8 @@ export type VectorSearchResult = {
   score?: number | null;
 };
 
+export type VultronRetrieverFlavor = "flash" | "core" | "prime";
+
 export type VectorCollection = {
   id: string;
   name: string;
@@ -28,6 +30,11 @@ export class VultrInferenceClient {
   );
   private readonly reasoningModel =
     process.env.VULTR_REASONING_MODEL ?? process.env.VULTR_CHAT_MODEL ?? "deepseek-ai/DeepSeek-V4-Flash";
+  private readonly retrieverModels: Record<VultronRetrieverFlavor, string> = {
+    flash: process.env.VULTR_RETRIEVER_FLASH_MODEL ?? "vultr/VultronRetrieverFlash-Qwen3.5-0.8B",
+    core: process.env.VULTR_RETRIEVER_CORE_MODEL ?? "vultr/VultronRetrieverCore-Qwen3.5-4.5B",
+    prime: process.env.VULTR_RETRIEVER_PRIME_MODEL ?? process.env.VULTR_RETRIEVER_MODEL ?? "vultr/VultronRetrieverPrime-Qwen3.5-8B"
+  };
   private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "8000");
   private readonly localMode = ["1", "true", "yes"].includes((process.env.VULTR_LOCAL_MODE ?? "").toLowerCase());
 
@@ -37,6 +44,10 @@ export class VultrInferenceClient {
 
   get model(): string {
     return this.reasoningModel;
+  }
+
+  retrieverModel(flavor: VultronRetrieverFlavor): string {
+    return this.retrieverModels[flavor];
   }
 
   async chatJson<T>(
@@ -187,6 +198,37 @@ export class VultrInferenceClient {
           : [];
 
     return candidates.map(normalizeSearchResult).filter((result) => result.content.length > 0);
+  }
+
+  async rerankDocuments(query: string, documents: VectorSearchResult[], flavor: VultronRetrieverFlavor): Promise<VectorSearchResult[]> {
+    if (!this.live || documents.length === 0) return documents;
+
+    const payload = await this.postJson(
+      "/rerank",
+      {
+        model: this.retrieverModels[flavor],
+        query,
+        documents: documents.map((document) => document.content)
+      },
+      () => null,
+      (value): value is { results?: Array<Record<string, unknown>> } | null =>
+        value === null || Boolean(value && typeof value === "object")
+    );
+    if (!payload?.results?.length) return documents;
+
+    const reranked: VectorSearchResult[] = [];
+    for (const result of payload.results) {
+      const index = numberValue(result.index);
+      if (index === null) continue;
+      const original = documents[index];
+      if (!original) continue;
+      reranked.push({
+        ...original,
+        score: numberValue(result.relevance_score) ?? original.score
+      });
+    }
+
+    return reranked.length > 0 ? reranked : documents;
   }
 
   private async postJson<T>(
