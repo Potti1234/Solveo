@@ -157,7 +157,7 @@ export class GeneralSecAgent {
           })
         }
       ],
-      () => fallbackAnswer(prompt, citations),
+      () => fallbackAnswer(prompt, citations, llmClient.live),
       isResearchAnswer
     );
   }
@@ -184,15 +184,18 @@ function fallbackResearchPlan(prompt: string): SecResearchPlan {
   };
 }
 
-function fallbackAnswer(prompt: string, citations: Citation[]): SecResearchAnswer {
+function fallbackAnswer(prompt: string, citations: Citation[], liveModelConfigured: boolean): SecResearchAnswer {
   const topCitations = citations.slice(0, 4);
+  const fallbackReason = liveModelConfigured
+    ? "Live synthesis was configured but the model request timed out, failed, or returned invalid JSON."
+    : "Live synthesis is not configured because VULTR_API_KEY is missing or VULTR_LOCAL_MODE is enabled.";
   return {
     answer:
       topCitations.length > 0
-        ? `I found filing evidence relevant to "${prompt}". Review the cited excerpts for the direct support; live synthesis is unavailable in local mode.`
+        ? `I found filing evidence relevant to "${prompt}". Review the cited excerpts for the direct support; ${fallbackReason}`
         : `I could not extract enough filing evidence to answer "${prompt}" from the available SEC retrieval path.`,
     keyFindings: topCitations.map((citation) => `${citation.locator}: ${citation.excerpt.slice(0, 240)}`),
-    caveats: ["Local fallback synthesis was used; enable the live model for a fuller narrative answer."]
+    caveats: [`Fallback synthesis was used. ${fallbackReason}`]
   };
 }
 
