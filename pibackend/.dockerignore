@@ -1,0 +1,6 @@
+node_modules
+vultr_audit.db
+vultr_audit.db-shm
+vultr_audit.db-wal
+drizzle
+*.log

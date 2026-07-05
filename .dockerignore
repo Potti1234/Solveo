@@ -1,0 +1,14 @@
+.git
+.artifacts
+node_modules
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+pibackend/node_modules
+pibackend/vultr_audit.db
+pibackend/vultr_audit.db-shm
+pibackend/vultr_audit.db-wal
+pibackend/drizzle
+.env
+*.log

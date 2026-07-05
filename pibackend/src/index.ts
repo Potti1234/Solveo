@@ -10,11 +10,15 @@ import { llmClient } from "./services/vultr";
 createSchema();
 
 const port = Number(process.env.PORT ?? 8001);
+const corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const app = new Elysia()
   .use(
     cors({
-      origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+      origin: corsOrigins,
       credentials: true
     })
   )
@@ -30,6 +34,6 @@ const app = new Elysia()
   .use(secRoutes)
   .use(toolRoutes)
   .use(whatIfRoutes)
-  .listen(port);
+  .listen({ port, hostname: "0.0.0.0" });
 
 console.log(`Vultr-Audit backend listening on http://localhost:${app.server?.port ?? port}`);

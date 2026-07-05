@@ -1,0 +1,75 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+  backend:
+    build:
+      context: ./pibackend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      DATABASE_PATH: /data/vultr_audit.db
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      PYTHON_BIN: python3
+      BUN_BIN: bun
+      VULTR_API_KEY: ${VULTR_API_KEY:-}
+      VULTR_INFERENCE_URL: ${VULTR_INFERENCE_URL:-https://api.vultrinference.com/v1}
+      VULTR_REASONING_MODEL: ${VULTR_REASONING_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      VULTR_RETRIEVER_MODEL: ${VULTR_RETRIEVER_MODEL:-vultr/VultronRetrieverPrime-Qwen3.5-8B}
+      VULTR_RETRIEVER_PRIME_MODEL: ${VULTR_RETRIEVER_PRIME_MODEL:-vultr/VultronRetrieverPrime-Qwen3.5-8B}
+      VULTR_RETRIEVER_CORE_MODEL: ${VULTR_RETRIEVER_CORE_MODEL:-vultr/VultronRetrieverCore-Qwen3.5-4.5B}
+      VULTR_RETRIEVER_FLASH_MODEL: ${VULTR_RETRIEVER_FLASH_MODEL:-vultr/VultronRetrieverFlash-Qwen3.5-0.8B}
+      VULTR_LOCAL_MODE: ${VULTR_LOCAL_MODE:-false}
+      VULTR_TIMEOUT_SECONDS: ${VULTR_TIMEOUT_SECONDS:-8000}
+      VULTR_RETRIEVER_MAX_DOCUMENT_CHARS: ${VULTR_RETRIEVER_MAX_DOCUMENT_CHARS:-240000}
+      VULTR_RETRIEVER_CHUNK_CHARS: ${VULTR_RETRIEVER_CHUNK_CHARS:-12000}
+      ENABLE_VECTOR_INDEXING: ${ENABLE_VECTOR_INDEXING:-false}
+      ENABLE_DIRECT_LLM_EXTRACTION: ${ENABLE_DIRECT_LLM_EXTRACTION:-false}
+      ENABLE_SLOW_COVENANT_RAG: ${ENABLE_SLOW_COVENANT_RAG:-false}
+      ENABLE_COVENANT_REFINEMENT: ${ENABLE_COVENANT_REFINEMENT:-false}
+      ENABLE_HEADROOM_TREND_SCAN: ${ENABLE_HEADROOM_TREND_SCAN:-false}
+      ENABLE_AMENDMENT_COMPARISON_SCAN: ${ENABLE_AMENDMENT_COMPARISON_SCAN:-false}
+      SEC_API_KEY: ${SEC_API_KEY:-}
+      SEC_USER_AGENT: ${SEC_USER_AGENT:-Solveo (ops@example.com)}
+      CODE_EXECUTION_TIMEOUT_MS: ${CODE_EXECUTION_TIMEOUT_MS:-8000}
+      CODE_EXECUTION_MAX_CODE_BYTES: ${CODE_EXECUTION_MAX_CODE_BYTES:-30000}
+      CODE_EXECUTION_MAX_OUTPUT_BYTES: ${CODE_EXECUTION_MAX_OUTPUT_BYTES:-20000}
+      WEB_SEARCH_PROVIDER: ${WEB_SEARCH_PROVIDER:-searxng}
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://searxng:8080}
+    volumes:
+      - backend-data:/data
+    expose:
+      - "8001"
+    depends_on:
+      - searxng
+
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: ${SEARXNG_PUBLIC_URL:-http://searxng:8080/}
+      INSTANCE_NAME: ${SEARXNG_INSTANCE_NAME:-Solveo Search}
+      SEARXNG_SECRET_KEY: ${SEARXNG_SECRET_KEY:?Set SEARXNG_SECRET_KEY in Dokploy}
+    volumes:
+      - ./infra/searxng/searxng:/etc/searxng:rw
+    entrypoint: ["/bin/sh", "/etc/searxng/start.sh"]
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    expose:
+      - "8080"
+
+volumes:
+  backend-data:
