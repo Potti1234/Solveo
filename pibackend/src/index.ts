@@ -28,6 +28,9 @@ const app = new Elysia()
     product: "vultr-audit",
     model_provider: "vultr",
     live_model: llmClient.live,
+    model: llmClient.model,
+    timeout_seconds: llmClient.timeoutSeconds,
+    max_output_tokens: llmClient.maxOutputTokens,
     mode: llmClient.live ? "vultr-live" : "deterministic-local"
   }))
   .use(auditRoutes)

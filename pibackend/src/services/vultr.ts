@@ -36,6 +36,7 @@ export class VultrInferenceClient {
     prime: process.env.VULTR_RETRIEVER_PRIME_MODEL ?? process.env.VULTR_RETRIEVER_MODEL ?? "vultr/VultronRetrieverPrime-Qwen3.5-8B"
   };
   private readonly timeoutMs = Number(process.env.VULTR_TIMEOUT_SECONDS ?? "30000");
+  private readonly chatMaxTokens = clampNumber(process.env.VULTR_CHAT_MAX_TOKENS, 1600, 256, 8192);
   private readonly localMode = ["1", "true", "yes"].includes((process.env.VULTR_LOCAL_MODE ?? "").toLowerCase());
 
   get live(): boolean {
@@ -44,6 +45,14 @@ export class VultrInferenceClient {
 
   get model(): string {
     return this.reasoningModel;
+  }
+
+  get timeoutSeconds(): number {
+    return Math.round(this.timeoutMs / 1000);
+  }
+
+  get maxOutputTokens(): number {
+    return this.chatMaxTokens;
   }
 
   retrieverModel(flavor: VultronRetrieverFlavor): string {
@@ -70,20 +79,31 @@ export class VultrInferenceClient {
           model: this.reasoningModel,
           messages,
           temperature: 0.1,
-          max_tokens: Number(process.env.VULTR_CHAT_MAX_TOKENS ?? "1600"),
+          max_tokens: this.chatMaxTokens,
           response_format: { type: "json_object" }
         }),
         signal: controller.signal
       });
-      if (!response.ok) return fallback();
+      if (!response.ok) {
+        await logFailedResponse("chat/completions", response);
+        return fallback();
+      }
 
       const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
       const content = payload.choices?.[0]?.message?.content;
-      if (!content) return fallback();
+      if (!content) {
+        console.warn("[vultr] chat/completions returned no message content; using fallback.");
+        return fallback();
+      }
 
       const parsed = parseJsonObject(content);
-      return validate(parsed) ? parsed : fallback();
-    } catch {
+      if (!validate(parsed)) {
+        console.warn("[vultr] chat/completions returned JSON with an unexpected shape; using fallback.");
+        return fallback();
+      }
+      return parsed;
+    } catch (error) {
+      logRequestError("chat/completions", error);
       return fallback();
     } finally {
       clearTimeout(timeout);
@@ -112,11 +132,19 @@ export class VultrInferenceClient {
       isChatCompletionPayload
     );
     const content = payload.choices?.[0]?.message?.content;
-    if (!content) return fallback();
+    if (!content) {
+      console.warn("[vultr] chat/completions/RAG returned no message content; using fallback.");
+      return fallback();
+    }
     try {
       const parsed = parseJsonObject(content);
-      return validate(parsed) ? parsed : fallback();
-    } catch {
+      if (!validate(parsed)) {
+        console.warn("[vultr] chat/completions/RAG returned JSON with an unexpected shape; using fallback.");
+        return fallback();
+      }
+      return parsed;
+    } catch (error) {
+      logRequestError("chat/completions/RAG parse", error);
       return fallback();
     }
   }
@@ -252,10 +280,18 @@ export class VultrInferenceClient {
         body: JSON.stringify(body),
         signal: controller.signal
       });
-      if (!response.ok) return fallback();
+      if (!response.ok) {
+        await logFailedResponse(path, response);
+        return fallback();
+      }
       const parsed = (await response.json()) as unknown;
-      return validate(parsed) ? parsed : fallback();
-    } catch {
+      if (!validate(parsed)) {
+        console.warn(`[vultr] ${path} returned an unexpected response shape; using fallback.`);
+        return fallback();
+      }
+      return parsed;
+    } catch (error) {
+      logRequestError(path, error);
       return fallback();
     } finally {
       clearTimeout(timeout);
@@ -276,10 +312,18 @@ export class VultrInferenceClient {
         },
         signal: controller.signal
       });
-      if (!response.ok) return fallback();
+      if (!response.ok) {
+        await logFailedResponse(path, response);
+        return fallback();
+      }
       const parsed = (await response.json()) as unknown;
-      return validate(parsed) ? parsed : fallback();
-    } catch {
+      if (!validate(parsed)) {
+        console.warn(`[vultr] ${path} returned an unexpected response shape; using fallback.`);
+        return fallback();
+      }
+      return parsed;
+    } catch (error) {
+      logRequestError(path, error);
       return fallback();
     } finally {
       clearTimeout(timeout);
@@ -349,6 +393,27 @@ function stringValue(value: unknown): string | null {
 
 function numberValue(value: unknown): number | null {
   return typeof value === "number" ? value : null;
+}
+
+function clampNumber(raw: string | undefined, fallback: number, min: number, max: number) {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+async function logFailedResponse(path: string, response: Response) {
+  let detail = "";
+  try {
+    detail = (await response.text()).slice(0, 500);
+  } catch {
+    detail = "Could not read response body.";
+  }
+  console.warn(`[vultr] ${path} failed with HTTP ${response.status}: ${detail}`);
+}
+
+function logRequestError(path: string, error: unknown) {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  console.warn(`[vultr] ${path} request failed; using fallback. ${message}`);
 }
 
 function parseJsonObject(content: string): unknown {
